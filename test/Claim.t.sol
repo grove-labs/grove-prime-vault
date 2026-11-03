@@ -5,7 +5,7 @@ import { IERC20 } from "../lib/oz/contracts/token/ERC20/IERC20.sol";
 
 import { TestBase } from "./TestBase.t.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
+import { IGrovePrimeVault } from "../src/IGrovePrimeVault.sol";
 
 interface IERC4626Like {
 
@@ -30,8 +30,8 @@ contract ClaimTests is TestBase {
     }
 
     function test_claim_nothingToClaim() external {
-        vm.expectRevert(ISparkPrimeVault.NothingToClaim.selector);
-        spPrime.claim(user);
+        vm.expectRevert(IGrovePrimeVault.NothingToClaim.selector);
+        grPrime.claim(user);
     }
 
     function test_claim_transferAmountExceedsBalanceBoundary() external {
@@ -46,26 +46,26 @@ contract ClaimTests is TestBase {
                 IERC4626Like.redeem.selector,
                 spUSDC.convertToShares(1_000_000e6),
                 user,
-                address(spPrime)
+                address(grPrime)
             ),
             ""
         );
 
         _processPendingDepositCancellations(1);
 
-        // spPrime has 1 less than claimable amount
-        deal(address(usdc), address(spPrime), 1_000_000e6 - 2);
+        // grPrime has 1 less than claimable amount
+        deal(address(usdc), address(grPrime), 1_000_000e6 - 2);
 
         vm.expectRevert("ERC20: transfer amount exceeds balance");
-        spPrime.claim(user);
+        grPrime.claim(user);
 
-        // spPrime has the full claimable amount
-        deal(address(usdc), address(spPrime), 1_000_000e6 - 1);
+        // grPrime has the full claimable amount
+        deal(address(usdc), address(grPrime), 1_000_000e6 - 1);
 
-        vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.Claim(user, 1_000_000e6 - 1);
+        vm.expectEmit(address(grPrime));
+        emit IGrovePrimeVault.Claim(user, 1_000_000e6 - 1);
 
-        spPrime.claim(user);
+        grPrime.claim(user);
     }
 
     function test_claim_transferFails() external {
@@ -80,7 +80,7 @@ contract ClaimTests is TestBase {
                 IERC4626Like.redeem.selector,
                 spUSDC.convertToShares(1_000_000e6),
                 user,
-                address(spPrime)
+                address(grPrime)
             ),
             ""
         );
@@ -95,7 +95,7 @@ contract ClaimTests is TestBase {
         );
 
         vm.expectRevert(bytes(""));
-        spPrime.claim(user);
+        grPrime.claim(user);
     }
 
     function test_claim_fromDepositCancellation() external {
@@ -123,7 +123,7 @@ contract ClaimTests is TestBase {
         });
 
         AccountBalances memory vaultBalances = AccountBalances({
-            account           : address(spPrime),
+            account           : address(grPrime),
             assets            : 0,
             shareValue        : 0,
             savingsShareValue : 1_000_000e6 - 1,
@@ -141,13 +141,13 @@ contract ClaimTests is TestBase {
                 IERC4626Like.redeem.selector,
                 spUSDC.convertToShares(1_000_000e6),
                 user,
-                address(spPrime)
+                address(grPrime)
             ),
             ""
         );
 
-        vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.ClaimableAssetsIncreased(user, 1_000_000e6 - 1);
+        vm.expectEmit(address(grPrime));
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(user, 1_000_000e6 - 1);
 
         _processPendingDepositCancellations(1);
 
@@ -169,10 +169,10 @@ contract ClaimTests is TestBase {
 
         // User claims their assets
 
-        vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.Claim(user, 1_000_000e6 - 1);
+        vm.expectEmit(address(grPrime));
+        emit IGrovePrimeVault.Claim(user, 1_000_000e6 - 1);
 
-        spPrime.claim(user);
+        grPrime.claim(user);
 
         vaultState.totalClaimable = 0;
 
@@ -188,7 +188,7 @@ contract ClaimTests is TestBase {
 
     function test_claim_fromRedeem() external {
         _requestDeposit(user, 1_000_000e6);
-        _requestRedeem(user,  spPrime.convertToShares(500_000e6));
+        _requestRedeem(user,  grPrime.convertToShares(500_000e6));
 
         vaultState.availableCapacityValue -= 1_000_000e6 - 1;
         vaultState.availableLiquidAssets  += 1_000_000e6 - 1;
@@ -211,7 +211,7 @@ contract ClaimTests is TestBase {
         });
 
         AccountBalances memory vaultBalances = AccountBalances({
-            account           : address(spPrime),
+            account           : address(grPrime),
             assets            : 0,
             shareValue        : 500_000e6,
             savingsShareValue : 1_000_000e6 - 1,
@@ -229,13 +229,13 @@ contract ClaimTests is TestBase {
                 IERC4626Like.withdraw.selector,
                 500_000e6,
                 user,
-                address(spPrime)
+                address(grPrime)
             ),
             ""
         );
 
-        vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.ClaimableAssetsIncreased(user, 500_000e6);
+        vm.expectEmit(address(grPrime));
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(user, 500_000e6);
 
         _processPendingRedeems(1);
 
@@ -259,10 +259,10 @@ contract ClaimTests is TestBase {
         _assertAccountBalances(vaultBalances);
         // User claims their assets
 
-        vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.Claim(user, 500_000e6);
+        vm.expectEmit(address(grPrime));
+        emit IGrovePrimeVault.Claim(user, 500_000e6);
 
-        spPrime.claim(user);
+        grPrime.claim(user);
 
         vaultState.totalClaimable = 0;
 

@@ -1,4 +1,4 @@
-# Spark Prime Vault (`spPrime`)
+# Grove Prime Vault (`grPrime`)
 
 An upgradeable (UUPS), yield-accruing vault token denominated in an underlying asset (e.g., USDC) that holds its liquidity in an ERC-4626 savings sleeve (e.g., `spUSDC`), featuring asynchronous FIFO queues for deposits, deposit cancellations, and redemptions in capacity- and liquidity-constrained environments.
 
@@ -27,7 +27,7 @@ Deposits are two-step: the user's assets go to the savings sleeve immediately, a
 - **Instant Fill**: If the new request is the only pending deposit (nothing queued ahead of it) and capacity is available, it is processed within the same transaction.
 - **Queueing**: Otherwise the request waits in the FIFO `_depositRequests` queue. Queued depositors keep earning savings yield while waiting, since the vault holds their savings shares.
 - **Capacity**: Fills are bounded by `availableCapacity() = maxCapacity - totalSupply` (floored at 0), converted to savings shares.
-- **Processing**: `OPERATOR_ROLE` calls `processPendingDeposits(maxSavingsShares, maxRequests)`. Savings shares are converted to assets and then minted as `spPrime` to each request's `recipient` at the current `chi`. Requests can be **partially filled**; a partially filled request stays at the head of the queue.
+- **Processing**: `OPERATOR_ROLE` calls `processPendingDeposits(maxSavingsShares, maxRequests)`. Savings shares are converted to assets and then minted as `grPrime` to each request's `recipient` at the current `chi`. Requests can be **partially filled**; a partially filled request stays at the head of the queue.
 - **Updating the recipient**: The request `owner` can call `updateDepositRecipient(requestId, recipient)` to change who receives the minted shares.
 
 ### 3. Deposit Cancellation & Cancellation Queue
@@ -74,9 +74,9 @@ Redemptions are always asynchronous (there is no instant fill).
 
 ### 9. Savings Vault Assumptions
 
-The vault is designed for Spark Vault V2 savings vaults (e.g., `spUSDC`) and relies on the following:
+The vault is designed for Grove Vault V2 savings vaults (e.g., `spUSDC`) and relies on the following:
 
-- **Deposits from the vault are accepted**: `requestDeposit` deposits into the savings vault with the vault as caller and receiver. It reverts if the vault holds the savings vault's `TAKER_ROLE` (Spark Vault V2 rejects deposits from takers) or if the deposit would exceed the savings vault's deposit cap.
+- **Deposits from the vault are accepted**: `requestDeposit` deposits into the savings vault with the vault as caller and receiver. It reverts if the vault holds the savings vault's `TAKER_ROLE` (Grove Vault V2 rejects deposits from takers) or if the deposit would exceed the savings vault's deposit cap.
 - **No fees**: `convertToShares`/`convertToAssets` are used for pricing, so deposits, redemptions, and withdrawals must not charge fees.
 - **Share price never falls**: savings shares are worth at least as many assets over time.
 - **`maxRedeem`/`maxWithdraw` are honoured**: amounts within these bounds can be redeemed or withdrawn in the same transaction.
@@ -119,7 +119,7 @@ The vault is designed for Spark Vault V2 savings vaults (e.g., `spUSDC`) and rel
 
 ---
 
-## THIS VAULT IS INTENDED TO BE USED WITH `spark-vaults-v2@v1.0.1` AS THE `savings` VAULT. ANY OTHER `savings` IMPLEMENTATION SHOULD BE REVIEWED FROM FIRST PRINCIPLES.
+## THIS VAULT IS INTENDED TO BE USED WITH `grove-vaults-v2@v1.0.1` AS THE `savings` VAULT. ANY OTHER `savings` IMPLEMENTATION SHOULD BE REVIEWED FROM FIRST PRINCIPLES.
 
 ### If another vault is used, it must AT LEAST adhere to these standards:
 

@@ -7,9 +7,9 @@ import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
 
 import { TokenFuzzChecks } from "../lib/token-tests/src/TokenFuzzChecks.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
+import { IGrovePrimeVault } from "../src/IGrovePrimeVault.sol";
 
-import { SparkPrimeVault } from "../src/SparkPrimeVault.sol";
+import { GrovePrimeVault } from "../src/GrovePrimeVault.sol";
 
 contract ERC20Tests is TokenFuzzChecks {
 
@@ -18,24 +18,24 @@ contract ERC20Tests is TokenFuzzChecks {
     address internal admin    = makeAddr("admin");
     address internal operator = makeAddr("operator");
 
-    SparkPrimeVault internal spPrime;
+    GrovePrimeVault internal grPrime;
 
     function setUp() public {
         vm.createSelectFork(getChain("mainnet").rpcUrl, _getBlock());
 
-        spPrime = SparkPrimeVault(
+        grPrime = GrovePrimeVault(
             address(new ERC1967Proxy(
-                address(new SparkPrimeVault()),
+                address(new GrovePrimeVault()),
                 abi.encodeCall(
-                    ISparkPrimeVault.initialize,
-                    (Ethereum.SPARK_VAULT_V2_SPUSDC, "Spark Prime USDC", "spPrime", admin, 1, 1, 1)
+                    IGrovePrimeVault.initialize,
+                    (Ethereum.SPARK_VAULT_V2_SPUSDC, "Grove Prime USDC", "grPrime", admin, 1, 1, 1)
                 )
             ))
         );
 
         vm.startPrank(admin);
-        spPrime.grantRole(OPERATOR_ROLE, operator);
-        spPrime.setVSRBounds(1e27, spPrime.MAX_VSR());
+        grPrime.grantRole(OPERATOR_ROLE, operator);
+        grPrime.setVSRBounds(1e27, grPrime.MAX_VSR());
         vm.stopPrank();
     }
 
@@ -44,7 +44,7 @@ contract ERC20Tests is TokenFuzzChecks {
     }
 
     function test_erc20() external {
-        checkBulkERC20(address(spPrime), "SparkPrimeVault", "Spark Prime USDC", "spPrime", "1", 6);
+        checkBulkERC20(address(grPrime), "GrovePrimeVault", "Grove Prime USDC", "grPrime", "1", 6);
     }
 
     function testFuzz_erc20(uint256 amount1, uint256 amount2, uint256 vsr, uint256 warpTime) external {
@@ -54,13 +54,13 @@ contract ERC20Tests is TokenFuzzChecks {
         warpTime = bound(warpTime, 0,    10 days);
 
         vm.prank(operator);
-        spPrime.setVSR(vsr);
+        grPrime.setVSR(vsr);
 
         skip(warpTime);
 
         checkBulkERC20Fuzz({
-            _token        : address(spPrime),
-            _contractName : "SparkPrimeVault",
+            _token        : address(grPrime),
+            _contractName : "GrovePrimeVault",
             from          : makeAddr("from"),
             to            : makeAddr("to"),
             amount1       : amount1,
@@ -72,7 +72,7 @@ contract ERC20Tests is TokenFuzzChecks {
         uint256 privateKey1 = 0x112233445566;
         uint256 privateKey2 = 0xAABBCCDDEEFF;
 
-        checkBulkPermit(address(spPrime), "SparkPrimeVault", privateKey1, privateKey2);
+        checkBulkPermit(address(grPrime), "GrovePrimeVault", privateKey1, privateKey2);
     }
 
     function testFuzz_permit(
@@ -88,8 +88,8 @@ contract ERC20Tests is TokenFuzzChecks {
         nonce      = bound(nonce,    0,                      type(uint256).max);
 
         checkBulkPermitFuzz({
-            _token        : address(spPrime),
-            _contractName : "SparkPrimeVault",
+            _token        : address(grPrime),
+            _contractName : "GrovePrimeVault",
             privKey       : privateKey,
             to            : makeAddr("to"),
             amount        : amount,

@@ -8,7 +8,7 @@ import {
 import { IERC20Metadata } from "../lib/oz/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC20Permit }   from "../lib/oz/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
-interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumerable {
+interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumerable {
 
     /**********************************************************************************************/
     /*** Structs                                                                                ***/
