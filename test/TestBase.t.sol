@@ -5,7 +5,7 @@ import { Test } from "../lib/forge-std/src/Test.sol";
 
 import { ERC1967Proxy } from "../lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum } from "../lib/grove-address-registry/src/Ethereum.sol";
 
 import { IGrovePrimeVault } from "../src/IGrovePrimeVault.sol";
 import { GrovePrimeVault }  from "../src/GrovePrimeVault.sol";
@@ -91,7 +91,7 @@ abstract contract TestBase is Test {
     bytes32 internal TAKER_ROLE             = keccak256("TAKER_ROLE");
     bytes32 internal UNPAUSER_ROLE          = keccak256("UNPAUSER_ROLE");
 
-    IERC20Like      internal usds   = IERC20Like(Ethereum.USDS);
+    IERC20Like   internal usds  = IERC20Like(Ethereum.USDS);
     ISavingsLike internal sUSDS = ISavingsLike(Ethereum.SUSDS);
 
     GrovePrimeVault internal grPrime;

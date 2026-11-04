@@ -3,7 +3,7 @@ pragma solidity ^0.8.34;
 
 import { ERC1967Proxy } from "../lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum } from "../lib/grove-address-registry/src/Ethereum.sol";
 
 import { TokenFuzzChecks } from "../lib/token-tests/src/TokenFuzzChecks.sol";
 
