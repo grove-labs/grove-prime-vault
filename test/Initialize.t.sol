@@ -34,8 +34,8 @@ contract InitializeTests is TestBase {
                 abi.encodeCall(
                     IGrovePrimeVault.initialize,
                     (
-                        address(spUSDC),
-                        "Grove Prime USDC",
+                        address(sUSDS),
+                        "Grove Prime USDS",
                         "grPrime",
                         admin,
                         minDeposit,
@@ -68,12 +68,12 @@ contract InitializeTests is TestBase {
 
     function test_initialize_alreadyInitialized() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        grPrime.initialize(address(spUSDC), "Grove Prime USDC", "grPrime", admin, 1, 1, 1);
+        grPrime.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1);
     }
 
     function test_initialize_implementationDisabled() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        implementation.initialize(address(spUSDC), "Grove Prime USDC", "grPrime", admin, 1, 1, 1);
+        implementation.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1);
     }
 
     function test_initialize() external {
@@ -101,11 +101,11 @@ contract InitializeTests is TestBase {
 
         assertEq(address(vault), expectedProxy);
 
-        assertEq(vault.savings(),  address(spUSDC));
-        assertEq(vault.asset(),    address(usdc));
-        assertEq(vault.name(),     "Grove Prime USDC");
+        assertEq(vault.savings(),  address(sUSDS));
+        assertEq(vault.asset(),    address(usds));
+        assertEq(vault.name(),     "Grove Prime USDS");
         assertEq(vault.symbol(),   "grPrime");
-        assertEq(vault.decimals(), 6);
+        assertEq(vault.decimals(), 18);
 
         assertTrue(vault.hasRole(DEFAULT_ADMIN_ROLE, admin));
 
@@ -119,7 +119,7 @@ contract InitializeTests is TestBase {
         assertEq(vault.minDepositCancellation(), MINIMUM_DEPOSIT_CANCELLATION);
         assertEq(vault.minRedeem(),              MINIMUM_REDEEM);
 
-        assertEq(usdc.allowance(address(vault), address(spUSDC)), type(uint256).max);
+        assertEq(usds.allowance(address(vault), address(sUSDS)), type(uint256).max);
     }
 
 }

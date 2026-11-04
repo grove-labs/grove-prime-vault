@@ -5,7 +5,7 @@ import { IERC20 } from "../lib/oz/contracts/token/ERC20/IERC20.sol";
 
 import { IGrovePrimeVault } from "../src/IGrovePrimeVault.sol";
 
-import { TestBase, IGroveVaultLike } from "./TestBase.t.sol";
+import { TestBase, ISavingsLike } from "./TestBase.t.sol";
 
 abstract contract GrovePrimeVaultTests is TestBase {
 
@@ -34,26 +34,26 @@ contract RequestDepositTests is GrovePrimeVaultTests {
 
         vm.expectRevert(IGrovePrimeVault.IsPaused.selector);
         vm.prank(user);
-        grPrime.requestDeposit(100e6, user, 0);
+        grPrime.requestDeposit(100e18, user, 0);
     }
 
     function test_requestDeposit_zeroRecipient() external {
         vm.expectRevert(IGrovePrimeVault.ZeroRecipient.selector);
         vm.prank(user);
-        grPrime.requestDeposit(100e6, address(0), 0);
+        grPrime.requestDeposit(100e18, address(0), 0);
     }
 
     function test_requestDeposit_vaultIsRecipient() external {
         vm.expectRevert(IGrovePrimeVault.VaultIsRecipient.selector);
         vm.prank(user);
-        grPrime.requestDeposit(100e6, address(grPrime), 0);
+        grPrime.requestDeposit(100e18, address(grPrime), 0);
     }
 
     function test_requestDeposit_belowMinDepositBoundary() external {
-        deal(address(usdc), user, MINIMUM_DEPOSIT);
+        deal(address(usds), user, MINIMUM_DEPOSIT);
 
         vm.prank(user);
-        usdc.approve(address(grPrime), MINIMUM_DEPOSIT);
+        usds.approve(address(grPrime), MINIMUM_DEPOSIT);
 
         vm.expectRevert(IGrovePrimeVault.BelowMinDeposit.selector);
         vm.prank(user);
@@ -64,45 +64,45 @@ contract RequestDepositTests is GrovePrimeVaultTests {
     }
 
     function test_requestDeposit_insufficientAllowanceBoundary() external {
-        deal(address(usdc), user, 1_000_000e6 + 1);
+        deal(address(usds), user, 1_000_000e18 + 1);
 
         vm.prank(user);
-        usdc.approve(address(grPrime), 1_000_000e6);
+        usds.approve(address(grPrime), 1_000_000e18);
 
         vm.prank(user);
-        vm.expectRevert("ERC20: transfer amount exceeds allowance");
-        grPrime.requestDeposit(1_000_000e6 + 1, user, 0);
+        vm.expectRevert("Usds/insufficient-allowance");
+        grPrime.requestDeposit(1_000_000e18 + 1, user, 0);
 
         vm.prank(user);
-        grPrime.requestDeposit(1_000_000e6, user, 0);
+        grPrime.requestDeposit(1_000_000e18, user, 0);
     }
 
     function test_requestDeposit_insufficientBalanceBoundary() external {
-        deal(address(usdc), user, 1_000_000e6);
+        deal(address(usds), user, 1_000_000e18);
 
         vm.prank(user);
-        usdc.approve(address(grPrime), 1_000_000e6 + 1);
+        usds.approve(address(grPrime), 1_000_000e18 + 1);
 
         vm.prank(user);
-        vm.expectRevert("ERC20: transfer amount exceeds balance");
-        grPrime.requestDeposit(1_000_000e6 + 1, user, 0);
+        vm.expectRevert("Usds/insufficient-balance");
+        grPrime.requestDeposit(1_000_000e18 + 1, user, 0);
 
         vm.prank(user);
-        grPrime.requestDeposit(1_000_000e6, user, 0);
+        grPrime.requestDeposit(1_000_000e18, user, 0);
     }
 
     // Success tests
 
     function test_requestDeposit_partialFill() external {
-        _requestDeposit(user, 1_000_000e6);  // Deposit Request 0 (Filled instantly)
+        _requestDeposit(user, 1_000_000e18);  // Deposit Request 0 (Filled instantly)
 
-        _setCapacity(grPrime.convertToShares(1_500_000e6));
+        _setCapacity(grPrime.convertToShares(1_500_000e18));
 
         vaultState.rho                    = vm.getBlockTimestamp();
         vaultState.chi                    = 1.049999999999999999961070145e27;
-        vaultState.totalAssets            = 1_000_000e6 - 2;
-        vaultState.availableCapacityValue = 500_000e6;
-        vaultState.availableLiquidAssets  = 1_000_000e6 - 1;
+        vaultState.totalAssets            = 1_000_000e18 - 2;
+        vaultState.availableCapacityValue = 500_000e18 + 1;
+        vaultState.availableLiquidAssets  = 1_000_000e18 - 1;
 
         vaultState.depositRequests.pendingShareValue = 0;
         vaultState.depositRequests.length            = 0;
@@ -111,7 +111,7 @@ contract RequestDepositTests is GrovePrimeVaultTests {
         AccountBalances memory userBalances = AccountBalances({
             account           : user,
             assets            : 0,
-            shareValue        : 1_000_000e6 - 2,
+            shareValue        : 1_000_000e18 - 2,
             savingsShareValue : 0,
             claimableAssets   : 0
         });
@@ -120,7 +120,7 @@ contract RequestDepositTests is GrovePrimeVaultTests {
             account           : address(grPrime),
             assets            : 0,
             shareValue        : 0,
-            savingsShareValue : 1_000_000e6 - 1,
+            savingsShareValue : 1_000_000e18 - 1,
             claimableAssets   : 0
         });
 
@@ -129,43 +129,43 @@ contract RequestDepositTests is GrovePrimeVaultTests {
         _assertAccountBalances(userBalances);
         _assertAccountBalances(vaultBalances);
 
-        deal(address(usdc), user, 800_000e6);
+        deal(address(usds), user, 800_000e18);
 
         vm.prank(user);
-        usdc.approve(address(grPrime), 800_000e6);
+        usds.approve(address(grPrime), 800_000e18);
 
-        uint256 expectedConvertedAssets       = 500_000e6 - 1;
-        uint256 expectedSavingsSharesMinted   = spUSDC.convertToShares(800_000e6);
-        uint256 expectedSavingsSharesConsumed = spUSDC.convertToShares(expectedConvertedAssets) + 1;
+        uint256 expectedConvertedAssets       = 500_000e18;
+        uint256 expectedSavingsSharesMinted   = sUSDS.convertToShares(800_000e18);
+        uint256 expectedSavingsSharesConsumed = sUSDS.convertToShares(expectedConvertedAssets) + 1;
         uint256 expectedSharesMinted          = grPrime.convertToShares(expectedConvertedAssets);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Referral(REFERRAL, 1, user, user, 800_000e6);
+        emit IGrovePrimeVault.Referral(REFERRAL, 1, user, user, 800_000e18);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositRequest(1, user, user, 800_000e6, expectedSavingsSharesMinted);
+        emit IGrovePrimeVault.DepositRequest(1, user, user, 800_000e18, expectedSavingsSharesMinted);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.Deposit(1, user, user, expectedSavingsSharesConsumed, expectedConvertedAssets, expectedSharesMinted);
 
         vm.prank(user);
-        uint256 requestId = grPrime.requestDeposit(800_000e6, user, REFERRAL);
+        uint256 requestId = grPrime.requestDeposit(800_000e18, user, REFERRAL);
 
         assertEq(requestId, 1);
 
-        _assertDepositRequest(1, user, user, 300_000e6);
+        _assertDepositRequest(1, user, user, 300_000e18 - 2);
 
-        vaultState.totalAssets            += 500_000e6 - 1;
+        vaultState.totalAssets            += 500_000e18 - 1;
         vaultState.availableCapacityValue  = 2;
-        vaultState.availableLiquidAssets  += 800_000e6;
+        vaultState.availableLiquidAssets  += 800_000e18 - 1;
 
-        vaultState.depositRequests.pendingShareValue += 300_000e6;
+        vaultState.depositRequests.pendingShareValue += 300_000e18 - 2;
         vaultState.depositRequests.length             = 1;
         vaultState.depositRequests.firstPendingId     = 1;
 
-        userBalances.shareValue += 500_000e6 - 1;
+        userBalances.shareValue += 500_000e18 - 1;
 
-        vaultBalances.savingsShareValue += 800_000e6;
+        vaultBalances.savingsShareValue += 800_000e18 - 1;
 
         _assertVaultState();
         _assertAccountBalances(userBalances);
@@ -173,15 +173,15 @@ contract RequestDepositTests is GrovePrimeVaultTests {
     }
 
     function test_requestDeposit_queued() external {
-        _requestDeposit(user, 1_000_000e6);  // Deposit Request 0 (Filled instantly)
+        _requestDeposit(user, 1_000_000e18);  // Deposit Request 0 (Filled instantly)
 
-        _setCapacity(grPrime.convertToShares(1_000_000e6));
+        _setCapacity(grPrime.convertToShares(1_000_000e18));
 
         vaultState.rho                    = vm.getBlockTimestamp();
         vaultState.chi                    = 1.049999999999999999961070145e27;
-        vaultState.totalAssets            = 1_000_000e6 - 2;
-        vaultState.availableCapacityValue = 0;
-        vaultState.availableLiquidAssets  = 1_000_000e6 - 1;
+        vaultState.totalAssets            = 1_000_000e18 - 2;
+        vaultState.availableCapacityValue = 1;
+        vaultState.availableLiquidAssets  = 1_000_000e18 - 1;
 
         vaultState.depositRequests.pendingShareValue = 0;
         vaultState.depositRequests.length            = 0;
@@ -190,7 +190,7 @@ contract RequestDepositTests is GrovePrimeVaultTests {
         AccountBalances memory userBalances = AccountBalances({
             account           : user,
             assets            : 0,
-            shareValue        : 1_000_000e6 - 2,
+            shareValue        : 1_000_000e18 - 2,
             savingsShareValue : 0,
             claimableAssets   : 0
         });
@@ -199,7 +199,7 @@ contract RequestDepositTests is GrovePrimeVaultTests {
             account           : address(grPrime),
             assets            : 0,
             shareValue        : 0,
-            savingsShareValue : 1_000_000e6 - 1,
+            savingsShareValue : 1_000_000e18 - 1,
             claimableAssets   : 0
         });
 
@@ -208,33 +208,33 @@ contract RequestDepositTests is GrovePrimeVaultTests {
         _assertAccountBalances(userBalances);
         _assertAccountBalances(vaultBalances);
 
-        deal(address(usdc), user, 800_000e6);
+        deal(address(usds), user, 800_000e18);
 
         vm.prank(user);
-        usdc.approve(address(grPrime), 800_000e6);
+        usds.approve(address(grPrime), 800_000e18);
 
-        uint256 expectedSavingsSharesMinted = spUSDC.convertToShares(800_000e6);
-
-        vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Referral(REFERRAL, 1, user, user, 800_000e6);
+        uint256 expectedSavingsSharesMinted = sUSDS.convertToShares(800_000e18);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositRequest(1, user, user, 800_000e6, expectedSavingsSharesMinted);
+        emit IGrovePrimeVault.Referral(REFERRAL, 1, user, user, 800_000e18);
+
+        vm.expectEmit(address(grPrime));
+        emit IGrovePrimeVault.DepositRequest(1, user, user, 800_000e18, expectedSavingsSharesMinted);
 
         vm.prank(user);
-        uint256 requestId = grPrime.requestDeposit(800_000e6, user, REFERRAL);
+        uint256 requestId = grPrime.requestDeposit(800_000e18, user, REFERRAL);
 
         assertEq(requestId, 1);
 
-        _assertDepositRequest(1, user, user, 800_000e6 - 1);
+        _assertDepositRequest(1, user, user, 800_000e18 - 1);
 
-        vaultState.availableLiquidAssets += 800_000e6;
+        vaultState.availableLiquidAssets += 800_000e18 - 1;
 
-        vaultState.depositRequests.pendingShareValue = 800_000e6 - 1;
+        vaultState.depositRequests.pendingShareValue = 800_000e18 - 1;
         vaultState.depositRequests.length            = 1;
         vaultState.depositRequests.firstPendingId    = 1;
 
-        vaultBalances.savingsShareValue += 800_000e6;
+        vaultBalances.savingsShareValue += 800_000e18 - 1;
 
         _assertVaultState();
         _assertAccountBalances(userBalances);
@@ -252,23 +252,23 @@ contract RequestRedeemTests is GrovePrimeVaultTests {
 
         vm.expectRevert(IGrovePrimeVault.IsPaused.selector);
         vm.prank(user);
-        grPrime.requestRedeem(100e6, user);
+        grPrime.requestRedeem(100e18, user);
     }
 
     function test_requestRedeem_zeroRecipient() external {
         vm.expectRevert(IGrovePrimeVault.ZeroRecipient.selector);
         vm.prank(user);
-        grPrime.requestRedeem(100e6, address(0));
+        grPrime.requestRedeem(100e18, address(0));
     }
 
     function test_requestRedeem_vaultIsRecipient() external {
         vm.expectRevert(IGrovePrimeVault.VaultIsRecipient.selector);
         vm.prank(user);
-        grPrime.requestRedeem(100e6, address(grPrime));
+        grPrime.requestRedeem(100e18, address(grPrime));
     }
 
     function test_requestRedeem_belowMinRedeemBoundary() external {
-        _requestDeposit(user, 1_000e6);
+        _requestDeposit(user, 1_000e18);
 
         vm.expectRevert(IGrovePrimeVault.BelowMinRedeem.selector);
         vm.prank(user);
@@ -279,11 +279,11 @@ contract RequestRedeemTests is GrovePrimeVaultTests {
     }
 
     function test_requestRedeem_insufficientBalanceBoundary() external {
-        _requestDeposit(user, 1_000e6);
+        _requestDeposit(user, 1_000e18);
 
         uint256 grPrimeShares = grPrime.balanceOf(user);
 
-        assertEq(grPrimeShares, 952.380951e6);
+        assertEq(grPrimeShares, 952.380952380952380986e18);
 
         vm.expectRevert("GrovePrimeVault/insufficient-balance");
         vm.prank(user);
@@ -296,20 +296,20 @@ contract RequestRedeemTests is GrovePrimeVaultTests {
     // Success tests
 
     function test_requestRedeem() external {
-        _requestDeposit(user, 1_000_000e6);  // Deposit Request 0 (Filled instantly)
+        _requestDeposit(user, 1_000_000e18);  // Deposit Request 0 (Filled instantly)
 
         vaultState.rho                    = vm.getBlockTimestamp();
         vaultState.chi                    = 1.049999999999999999961070145e27;
-        vaultState.totalAssets            = 1_000_000e6 - 2;
-        vaultState.availableCapacityValue = 104_000_000e6;  // Vault capacity value was 105m because of 5% change in chi prior to the first deposit
-        vaultState.availableLiquidAssets  = 1_000_000e6 - 1;
+        vaultState.totalAssets            = 1_000_000e18 - 2;
+        vaultState.availableCapacityValue = 104_000_000e18 - 3_892_984;  // Vault capacity value was ~105m because of ~5% change in chi prior to the first deposit
+        vaultState.availableLiquidAssets  = 1_000_000e18 - 1;
 
         vaultState.depositRequests.firstPendingId = 1;
 
         AccountBalances memory userBalances = AccountBalances({
             account           : user,
             assets            : 0,
-            shareValue        : 1_000_000e6 - 2,
+            shareValue        : 1_000_000e18 - 2,
             savingsShareValue : 0,
             claimableAssets   : 0
         });
@@ -318,7 +318,7 @@ contract RequestRedeemTests is GrovePrimeVaultTests {
             account           : address(grPrime),
             assets            : 0,
             shareValue        : 0,
-            savingsShareValue : 1_000_000e6 - 1,
+            savingsShareValue : 1_000_000e18 - 1,
             claimableAssets   : 0
         });
 
@@ -328,22 +328,22 @@ contract RequestRedeemTests is GrovePrimeVaultTests {
         _assertAccountBalances(vaultBalances);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.RedeemRequest(0, user, user, 500_000e6, 0);
+        emit IGrovePrimeVault.RedeemRequest(0, user, user, 500_000e18, 0);
 
         vm.prank(user);
-        uint256 requestId = grPrime.requestRedeem(500_000e6, user);
+        uint256 requestId = grPrime.requestRedeem(500_000e18, user);
 
         assertEq(requestId, 0);
 
-        vaultState.redeemRequests.pendingShareValue = 525_000e6 - 1;  // 500k grPrime == 525k USD because of current exchange rate
+        vaultState.redeemRequests.pendingShareValue = 525_000e18 - 19_465;  // 500k grPrime == ~525k USD because of current exchange rate
         vaultState.redeemRequests.length            = 1;
         vaultState.redeemRequests.firstPendingId    = 0;
 
-        userBalances.shareValue -= 525_000e6;
+        userBalances.shareValue -= 525_000e18 - 19_465;
 
-        vaultBalances.shareValue += 525_000e6 - 1;
+        vaultBalances.shareValue += 525_000e18 - 19_465;
 
-        _assertRedeemRequest(0, user, user, 525_000e6 - 1);
+        _assertRedeemRequest(0, user, user, 525_000e18 - 19_465);
 
         _assertVaultState();
         _assertAccountBalances(userBalances);
@@ -354,20 +354,20 @@ contract RequestRedeemTests is GrovePrimeVaultTests {
         _setMaxRedeemFeeRate(0.01e18);  // 1%
         _setRedeemFeeRate(0.005e18);    // 0.5%
 
-        _requestDeposit(user, 1_000_000e6);  // Deposit Request 0 (Filled instantly)
+        _requestDeposit(user, 1_000_000e18);  // Deposit Request 0 (Filled instantly)
 
         vaultState.rho                    = vm.getBlockTimestamp();
         vaultState.chi                    = 1.049999999999999999961070145e27;
-        vaultState.totalAssets            = 1_000_000e6 - 2;
-        vaultState.availableCapacityValue = 104_000_000e6;  // Vault capacity value was 105m because of 5% change in chi prior to the first deposit
-        vaultState.availableLiquidAssets  = 1_000_000e6 - 1;
+        vaultState.totalAssets            = 1_000_000e18 - 2;
+        vaultState.availableCapacityValue = 104_000_000e18 - 3_892_984;  // Vault capacity value was ~105m because of ~5% change in chi prior to the first deposit
+        vaultState.availableLiquidAssets  = 1_000_000e18 - 1;
 
         vaultState.depositRequests.firstPendingId = 1;
 
         AccountBalances memory userBalances = AccountBalances({
             account           : user,
             assets            : 0,
-            shareValue        : 1_000_000e6 - 2,
+            shareValue        : 1_000_000e18 - 2,
             savingsShareValue : 0,
             claimableAssets   : 0
         });
@@ -376,7 +376,7 @@ contract RequestRedeemTests is GrovePrimeVaultTests {
             account           : address(grPrime),
             assets            : 0,
             shareValue        : 0,
-            savingsShareValue : 1_000_000e6 - 1,
+            savingsShareValue : 1_000_000e18 - 1,
             claimableAssets   : 0
         });
 
@@ -385,37 +385,37 @@ contract RequestRedeemTests is GrovePrimeVaultTests {
         _assertAccountBalances(userBalances);
         _assertAccountBalances(vaultBalances);
 
-        // Assets held (spUSDC value) match assets owed to grPrime holders, within rounding
+        // Assets held (sUSDS value) match assets owed to grPrime holders, within rounding
         assertEq(grPrime.availableLiquidAssets() - grPrime.totalAssets(), 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.RedeemRequest(0, user, user, 500_000e6, 2_500e6);
+        emit IGrovePrimeVault.RedeemRequest(0, user, user, 500_000e18, 2_500e18);
 
         vm.prank(user);
-        uint256 requestId = grPrime.requestRedeem(500_000e6, user);
+        uint256 requestId = grPrime.requestRedeem(500_000e18, user);
 
         assertEq(requestId, 0);
 
         // Fee shares are burned, so supply and assets drop and capacity frees up
-        vaultState.totalAssets            -= 2_625e6;  // 2_500e6 fee shares * 1.05 chi
-        vaultState.availableCapacityValue += 2_625e6;
+        vaultState.totalAssets            -= 2_625e18 - 97;  // 2_500e18 fee shares * ~1.05 chi
+        vaultState.availableCapacityValue += 2_625e18 - 98;
 
-        vaultState.redeemRequests.pendingShareValue = 525_000e6 - 2_625e6 - 1;
+        vaultState.redeemRequests.pendingShareValue = 525_000e18 - 2_625e18 - 19_368;
         vaultState.redeemRequests.length            = 1;
         vaultState.redeemRequests.firstPendingId    = 0;
 
-        userBalances.shareValue -= 525_000e6;
+        userBalances.shareValue -= 525_000e18 - 19_465;
 
-        vaultBalances.shareValue += 525_000e6 - 2_625e6 - 1;
+        vaultBalances.shareValue += 525_000e18 - 2_625e18 - 19_368;
 
-        _assertRedeemRequest(0, user, user, 525_000e6 - 2_625e6 - 1);
+        _assertRedeemRequest(0, user, user, 525_000e18 - 2_625e18 - 19_368);
 
         _assertVaultState();
         _assertAccountBalances(userBalances);
         _assertAccountBalances(vaultBalances);
 
         // Assets held are unchanged but assets owed dropped by the burned fee, the difference is Grove's profit
-        assertEq(grPrime.availableLiquidAssets() - grPrime.totalAssets(), 2_625e6 + 1);
+        assertEq(grPrime.availableLiquidAssets() - grPrime.totalAssets(), 2_625e18 - 96);
     }
 
 }
@@ -440,30 +440,30 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
 
         _setCapacity(0);
 
-        _requestDeposit(ali, 100_000e6);    // Will be cancelled
-        _requestDeposit(bob, 200_000e6);    // Will be cancelled
-        _requestDeposit(cam, 300_000e6);    // Will be cancelled
-        _requestDeposit(ali, 400_000e6);    // Will be filled
-        _requestDeposit(bob, 500_000e6);    // Will be filled
-        _requestDeposit(cam, 600_000e6);    // Will be cancelled
-        _requestDeposit(ali, 700_000e6);    // Will be filled
-        _requestDeposit(bob, 800_000e6);    // Will be filled
-        _requestDeposit(cam, 900_000e6);    // Will be cancelled
-        _requestDeposit(ali, 1_000_000e6);  // Will be partially filled
+        _requestDeposit(ali, 100_000e18);    // Will be cancelled
+        _requestDeposit(bob, 200_000e18);    // Will be cancelled
+        _requestDeposit(cam, 300_000e18);    // Will be cancelled
+        _requestDeposit(ali, 400_000e18);    // Will be filled
+        _requestDeposit(bob, 500_000e18);    // Will be filled
+        _requestDeposit(cam, 600_000e18);    // Will be cancelled
+        _requestDeposit(ali, 700_000e18);    // Will be filled
+        _requestDeposit(bob, 800_000e18);    // Will be filled
+        _requestDeposit(cam, 900_000e18);    // Will be cancelled
+        _requestDeposit(ali, 1_000_000e18);  // Will be partially filled
 
-        _requestDepositCancellation(ali, 0, spUSDC.convertToShares(100_000e6));
-        _requestDepositCancellation(bob, 1, spUSDC.convertToShares(200_000e6));
-        _requestDepositCancellation(cam, 2, spUSDC.convertToShares(300_000e6));
-        _requestDepositCancellation(cam, 5, spUSDC.convertToShares(600_000e6));
-        _requestDepositCancellation(cam, 8, spUSDC.convertToShares(900_000e6));
+        _requestDepositCancellation(ali, 0, sUSDS.convertToShares(100_000e18));
+        _requestDepositCancellation(bob, 1, sUSDS.convertToShares(200_000e18));
+        _requestDepositCancellation(cam, 2, sUSDS.convertToShares(300_000e18));
+        _requestDepositCancellation(cam, 5, sUSDS.convertToShares(600_000e18));
+        _requestDepositCancellation(cam, 8, sUSDS.convertToShares(900_000e18));
 
-        uint256 depositedAssets = 5_500_000e6;
+        uint256 depositedAssets = 5_500_000e18;
 
-        uint256 pendingDepositAssets = 400_000e6 + 500_000e6 + 700_000e6 + 800_000e6 + 1_000_000e6;
+        uint256 pendingDepositAssets = 400_000e18 + 500_000e18 + 700_000e18 + 800_000e18 + 1_000_000e18;
 
-        uint256 pendingDepositCancellationAssets = 100_000e6 + 200_000e6 + 300_000e6 + 600_000e6 + 900_000e6;
+        uint256 pendingDepositCancellationAssets = 100_000e18 + 200_000e18 + 300_000e18 + 600_000e18 + 900_000e18;
 
-        uint256 targetAssets = 400_000e6 + 500_000e6 + 700_000e6 + 800_000e6 + 200_000e6;  // Only 200k of the last 1MM deposit
+        uint256 targetAssets = 400_000e18 + 500_000e18 + 700_000e18 + 800_000e18 + 200_000e18;  // Only 200k of the last 1MM deposit
 
         _setCapacity(grPrime.convertToShares(targetAssets));
 
@@ -472,13 +472,13 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
         vaultState.totalAssets            = 0;
         vaultState.totalClaimable         = 0;
         vaultState.availableCapacityValue = targetAssets - 1;
-        vaultState.availableLiquidAssets  = depositedAssets - 5;
+        vaultState.availableLiquidAssets  = depositedAssets - 8;
 
         vaultState.depositRequests.pendingShareValue = pendingDepositAssets - 3;
         vaultState.depositRequests.length            = 7;
         vaultState.depositRequests.firstPendingId    = 3;
 
-        vaultState.depositCancellationRequests.pendingShareValue = pendingDepositCancellationAssets - 3;
+        vaultState.depositCancellationRequests.pendingShareValue = pendingDepositCancellationAssets - 5;
         vaultState.depositCancellationRequests.length            = 5;
         vaultState.depositCancellationRequests.firstPendingId    = 0;
 
@@ -510,7 +510,7 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
             account           : address(grPrime),
             assets            : 0,
             shareValue        : 0,
-            savingsShareValue : depositedAssets - 5,
+            savingsShareValue : depositedAssets - 8,
             claimableAssets   : 0
         });
 
@@ -526,17 +526,17 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositRequest(i);
         }
 
-        _assertDepositRequest(3, ali, ali, 400_000e6 - 1);
-        _assertDepositRequest(4, bob, bob, 500_000e6 - 1);
+        _assertDepositRequest(3, ali, ali, 400_000e18 - 1);
+        _assertDepositRequest(4, bob, bob, 500_000e18 - 1);
 
         _assertEmptyDepositRequest(5);
 
-        _assertDepositRequest(6, ali, ali, 700_000e6 - 1);
-        _assertDepositRequest(7, bob, bob, 800_000e6 - 1);
+        _assertDepositRequest(6, ali, ali, 700_000e18 - 1);
+        _assertDepositRequest(7, bob, bob, 800_000e18 - 1);
 
         _assertEmptyDepositRequest(8);
 
-        _assertDepositRequest(9, ali, ali, 1_000_000e6 - 1);
+        _assertDepositRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     // Failure tests
@@ -558,57 +558,57 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
         // Deposit Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e6) - 1);
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(3, ali, ali, spUSDC.convertToShares(400_000e6), 400_000e6 - 1, grPrime.convertToShares(400_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(3, ali, ali, sUSDS.convertToShares(400_000e18), 400_000e18 - 1, grPrime.convertToShares(400_000e18) - 1);
 
         // Deposit Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(500_000e6) - 1);
+        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(500_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(4, bob, bob, spUSDC.convertToShares(500_000e6), 500_000e6 - 1, grPrime.convertToShares(500_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(4, bob, bob, sUSDS.convertToShares(500_000e18), 500_000e18 - 1, grPrime.convertToShares(500_000e18) - 1);
 
         // Deposit Request 6
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(700_000e6) - 1);
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(700_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(6, ali, ali, spUSDC.convertToShares(700_000e6), 700_000e6 - 1, grPrime.convertToShares(700_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(6, ali, ali, sUSDS.convertToShares(700_000e18), 700_000e18 - 1, grPrime.convertToShares(700_000e18) - 1);
 
         // Deposit Request 7
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(800_000e6) - 1);
+        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(800_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(7, bob, bob, spUSDC.convertToShares(800_000e6), 800_000e6 - 1, grPrime.convertToShares(800_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(7, bob, bob, sUSDS.convertToShares(800_000e18), 800_000e18 - 1, grPrime.convertToShares(800_000e18) - 1);
 
         // Deposit Request 9 (Partial)
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(200_000e6));
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(200_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(9, ali, ali, spUSDC.convertToShares(200_000e6) + 1, 200_000e6, grPrime.convertToShares(200_000e6));
+        emit IGrovePrimeVault.Deposit(9, ali, ali, sUSDS.convertToShares(200_000e18) + 1, 200_000e18, grPrime.convertToShares(200_000e18));
 
         vm.prank(operator);
         grPrime.processPendingDeposits(type(uint256).max, type(uint256).max);
 
-        uint256 assetsDeposited = 400_000e6 + 500_000e6 + 700_000e6 + 800_000e6 + 200_000e6;  // Only ~200k of the last 1MM deposit
+        uint256 assetsDeposited = 400_000e18 + 500_000e18 + 700_000e18 + 800_000e18 + 200_000e18;  // Only ~200k of the last 1MM deposit
 
         vaultState.totalAssets            += assetsDeposited - 7;
-        vaultState.availableCapacityValue -= assetsDeposited - 7;
+        vaultState.availableCapacityValue -= assetsDeposited - 6;
 
-        vaultState.depositRequests.pendingShareValue -= assetsDeposited - 1;
+        vaultState.depositRequests.pendingShareValue -= assetsDeposited - 2;
         vaultState.depositRequests.length             = 1;
         vaultState.depositRequests.firstPendingId     = 9;
 
-        aliBalances.shareValue += 400_000e6 + 700_000e6 + 200_000e6 - 4;
-        bobBalances.shareValue += 500_000e6 + 800_000e6 - 4;
+        aliBalances.shareValue += 400_000e18 + 700_000e18 + 200_000e18 - 4;
+        bobBalances.shareValue += 500_000e18 + 800_000e18 - 4;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -621,7 +621,7 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositRequest(i);
         }
 
-        _assertDepositRequest(9, ali, ali, 800_000e6 - 2);
+        _assertDepositRequest(9, ali, ali, 800_000e18 - 1);
     }
 
     function test_processPendingDeposits_infiniteMaxSavingsShares_limitedMaxRequests() external {
@@ -633,24 +633,24 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
         // Deposit Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e6) - 1);
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(3, ali, ali, spUSDC.convertToShares(400_000e6), 400_000e6 - 1, grPrime.convertToShares(400_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(3, ali, ali, sUSDS.convertToShares(400_000e18), 400_000e18 - 1, grPrime.convertToShares(400_000e18) - 1);
 
         // Deposit Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(500_000e6) - 1);
+        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(500_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(4, bob, bob, spUSDC.convertToShares(500_000e6), 500_000e6 - 1, grPrime.convertToShares(500_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(4, bob, bob, sUSDS.convertToShares(500_000e18), 500_000e18 - 1, grPrime.convertToShares(500_000e18) - 1);
 
         // First 3 cancelled deposits were already skipped, so this fills 2 deposits, then skips 1 cancelled deposit.
         vm.prank(operator);
         grPrime.processPendingDeposits(type(uint256).max, maxRequests);
 
-        uint256 assetsDeposited = 400_000e6 + 500_000e6;  // Only first 2 uncancelled deposits
+        uint256 assetsDeposited = 400_000e18 + 500_000e18;  // Only first 2 uncancelled deposits
 
         vaultState.totalAssets            += assetsDeposited - 4;
         vaultState.availableCapacityValue -= assetsDeposited - 3;
@@ -659,8 +659,8 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
         vaultState.depositRequests.length             = 4;
         vaultState.depositRequests.firstPendingId     = 6;
 
-        aliBalances.shareValue += 400_000e6 - 2;
-        bobBalances.shareValue += 500_000e6 - 2;
+        aliBalances.shareValue += 400_000e18 - 2;
+        bobBalances.shareValue += 500_000e18 - 2;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -673,16 +673,16 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositRequest(i);
         }
 
-        _assertDepositRequest(6, ali, ali, 700_000e6 - 1);
-        _assertDepositRequest(7, bob, bob, 800_000e6 - 1);
+        _assertDepositRequest(6, ali, ali, 700_000e18 - 1);
+        _assertDepositRequest(7, bob, bob, 800_000e18 - 1);
 
         _assertEmptyDepositRequest(8);
 
-        _assertDepositRequest(9, ali, ali, 1_000_000e6 - 1);
+        _assertDepositRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     function test_processPendingDeposits_limitedMaxSavingsShares_infiniteMaxRequests() external {
-        uint256 maxSavingsShares = spUSDC.convertToShares(1_200_000e6);
+        uint256 maxSavingsShares = sUSDS.convertToShares(1_200_000e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.ProcessPendingDeposits(operator, maxSavingsShares, type(uint256).max);
@@ -690,41 +690,41 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
         // Deposit Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e6) - 1);
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(3, ali, ali, spUSDC.convertToShares(400_000e6), 400_000e6 - 1, grPrime.convertToShares(400_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(3, ali, ali, sUSDS.convertToShares(400_000e18), 400_000e18 - 1, grPrime.convertToShares(400_000e18) - 1);
 
         // Deposit Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(500_000e6) - 1);
+        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(500_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(4, bob, bob, spUSDC.convertToShares(500_000e6), 500_000e6 - 1, grPrime.convertToShares(500_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(4, bob, bob, sUSDS.convertToShares(500_000e18), 500_000e18 - 1, grPrime.convertToShares(500_000e18) - 1);
 
         // Deposit Request 6 (Partial)
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(300_000e6));
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(300_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(6, ali, ali, spUSDC.convertToShares(300_000e6) + 1, 300_000e6, grPrime.convertToShares(300_000e6));
+        emit IGrovePrimeVault.Deposit(6, ali, ali, sUSDS.convertToShares(300_000e18) + 1, 300_000e18, grPrime.convertToShares(300_000e18));
 
         vm.prank(operator);
         grPrime.processPendingDeposits(maxSavingsShares, type(uint256).max);
 
-        uint256 assetsDeposited = 400_000e6 + 500_000e6 + 300_000e6;  // Only ~300k of the third uncancelled 700k deposit
+        uint256 assetsDeposited = 400_000e18 + 500_000e18 + 300_000e18;  // Only ~300k of the third uncancelled 700k deposit
 
         vaultState.totalAssets            += assetsDeposited - 4;
-        vaultState.availableCapacityValue -= assetsDeposited - 3;
+        vaultState.availableCapacityValue -= assetsDeposited - 4;
 
         vaultState.depositRequests.pendingShareValue -= assetsDeposited - 1;
         vaultState.depositRequests.length             = 4;
         vaultState.depositRequests.firstPendingId     = 6;
 
-        aliBalances.shareValue += 400_000e6 + 300_000e6 - 2;
-        bobBalances.shareValue += 500_000e6 - 2;
+        aliBalances.shareValue += 400_000e18 + 300_000e18 - 3;
+        bobBalances.shareValue += 500_000e18 - 2;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -737,12 +737,12 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositRequest(i);
         }
 
-        _assertDepositRequest(6, ali, ali, 400_000e6 - 2);  // Partial fill
-        _assertDepositRequest(7, bob, bob, 800_000e6 - 1);
+        _assertDepositRequest(6, ali, ali, 400_000e18 - 1);  // Partial fill
+        _assertDepositRequest(7, bob, bob, 800_000e18 - 1);
 
         _assertEmptyDepositRequest(8);
 
-        _assertDepositRequest(9, ali, ali, 1_000_000e6 - 1);
+        _assertDepositRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     function _getMaxDepositableAmount(uint256 requestAmount, uint256 maxSavingsShareValue, uint256 assetsDeposited) internal pure returns (uint256) {
@@ -756,50 +756,50 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
         maxRequests          = _bound(maxRequests,          0, 2 * vaultState.depositRequests.length);
 
         vm.startPrank(operator);
-        grPrime.processPendingDeposits(spUSDC.convertToShares(maxSavingsShareValue), maxRequests);
+        grPrime.processPendingDeposits(sUSDS.convertToShares(maxSavingsShareValue), maxRequests);
         vm.stopPrank();
 
         uint256 assetsDeposited;
 
         for (uint256 i = 0; i < maxRequests; ++i) {
             if (i == 0) {
-                uint256 depositAmount = _getMaxDepositableAmount(400_000e6, maxSavingsShareValue, 0);
+                uint256 depositAmount = _getMaxDepositableAmount(400_000e18, maxSavingsShareValue, 0);
 
                 aliBalances.shareValue += depositAmount;
                 assetsDeposited        += depositAmount;
 
-                if (depositAmount < 400_000e6) break;
+                if (depositAmount < 400_000e18) break;
             }
 
             if (i == 1) {
-                uint256 depositAmount = _getMaxDepositableAmount(500_000e6, maxSavingsShareValue, assetsDeposited);
+                uint256 depositAmount = _getMaxDepositableAmount(500_000e18, maxSavingsShareValue, assetsDeposited);
 
                 bobBalances.shareValue += depositAmount;
                 assetsDeposited        += depositAmount;
 
-                if (depositAmount < 500_000e6) break;
+                if (depositAmount < 500_000e18) break;
             }
 
             if (i == 3) {
-                uint256 depositAmount = _getMaxDepositableAmount(700_000e6, maxSavingsShareValue, assetsDeposited);
+                uint256 depositAmount = _getMaxDepositableAmount(700_000e18, maxSavingsShareValue, assetsDeposited);
 
                 aliBalances.shareValue += depositAmount;
                 assetsDeposited        += depositAmount;
 
-                if (depositAmount < 700_000e6) break;
+                if (depositAmount < 700_000e18) break;
             }
 
             if (i == 4) {
-                uint256 depositAmount = _getMaxDepositableAmount(800_000e6, maxSavingsShareValue, assetsDeposited);
+                uint256 depositAmount = _getMaxDepositableAmount(800_000e18, maxSavingsShareValue, assetsDeposited);
 
                 bobBalances.shareValue += depositAmount;
                 assetsDeposited        += depositAmount;
 
-                if (depositAmount < 800_000e6) break;
+                if (depositAmount < 800_000e18) break;
             }
 
             if (i == 6) {
-                uint256 depositAmount = _getMaxDepositableAmount(200_000e6, maxSavingsShareValue, assetsDeposited);
+                uint256 depositAmount = _getMaxDepositableAmount(200_000e18, maxSavingsShareValue, assetsDeposited);
 
                 aliBalances.shareValue += depositAmount;
                 assetsDeposited        += depositAmount;
@@ -835,7 +835,7 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
     }
 
     function test_processPendingDeposits_multipleCalls() external {
-        uint256 maxSavingsShares = spUSDC.convertToShares(1_200_000e6);
+        uint256 maxSavingsShares = sUSDS.convertToShares(1_200_000e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.ProcessPendingDeposits(operator, maxSavingsShares, type(uint256).max);
@@ -843,41 +843,41 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
         // Deposit Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e6) - 1);
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(3, ali, ali, spUSDC.convertToShares(400_000e6), 400_000e6 - 1, grPrime.convertToShares(400_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(3, ali, ali, sUSDS.convertToShares(400_000e18), 400_000e18 - 1, grPrime.convertToShares(400_000e18) - 1);
 
         // Deposit Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(500_000e6) - 1);
+        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(500_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(4, bob, bob, spUSDC.convertToShares(500_000e6), 500_000e6 - 1, grPrime.convertToShares(500_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(4, bob, bob, sUSDS.convertToShares(500_000e18), 500_000e18 - 1, grPrime.convertToShares(500_000e18) - 1);
 
         // Deposit Request 6 (Partial)
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(300_000e6));
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(300_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(6, ali, ali, spUSDC.convertToShares(300_000e6) + 1, 300_000e6, grPrime.convertToShares(300_000e6));
+        emit IGrovePrimeVault.Deposit(6, ali, ali, sUSDS.convertToShares(300_000e18) + 1, 300_000e18, grPrime.convertToShares(300_000e18));
 
         vm.prank(operator);
         grPrime.processPendingDeposits(maxSavingsShares, type(uint256).max);
 
-        uint256 assetsDeposited = 400_000e6 + 500_000e6 + 300_000e6;  // Only ~300k of the Request 6 700k deposit
+        uint256 assetsDeposited = 400_000e18 + 500_000e18 + 300_000e18;  // Only ~300k of the Request 6 700k deposit
 
         vaultState.totalAssets            += assetsDeposited - 4;
-        vaultState.availableCapacityValue -= assetsDeposited - 3;
+        vaultState.availableCapacityValue -= assetsDeposited - 4;
 
         vaultState.depositRequests.pendingShareValue -= assetsDeposited - 1;
         vaultState.depositRequests.length             = 4;
         vaultState.depositRequests.firstPendingId     = 6;
 
-        aliBalances.shareValue += 400_000e6 + 300_000e6 - 2;
-        bobBalances.shareValue += 500_000e6 - 2;
+        aliBalances.shareValue += 400_000e18 + 300_000e18 - 3;
+        bobBalances.shareValue += 500_000e18 - 2;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -890,51 +890,51 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositRequest(i);
         }
 
-        _assertDepositRequest(6, ali, ali, 400_000e6 - 2);  // Partial fill
-        _assertDepositRequest(7, bob, bob, 800_000e6 - 1);
+        _assertDepositRequest(6, ali, ali, 400_000e18 - 1);  // Partial fill
+        _assertDepositRequest(7, bob, bob, 800_000e18 - 1);
 
         _assertEmptyDepositRequest(8);
 
-        _assertDepositRequest(9, ali, ali, 1_000_000e6 - 1);
+        _assertDepositRequest(9, ali, ali, 1_000_000e18 - 1);
 
         // Deposit Request 6 (Remainder)
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e6) - 2);
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(400_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(6, ali, ali, spUSDC.convertToShares(400_000e6) - 1, 400_000e6 - 2, grPrime.convertToShares(400_000e6) - 2);
+        emit IGrovePrimeVault.Deposit(6, ali, ali, sUSDS.convertToShares(400_000e18), 400_000e18 - 1, grPrime.convertToShares(400_000e18) - 1);
 
         // Deposit Request 7
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(800_000e6) - 1);
+        emit IERC20.Transfer(address(0), bob, grPrime.convertToShares(800_000e18) - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(7, bob, bob, spUSDC.convertToShares(800_000e6), 800_000e6 - 1, grPrime.convertToShares(800_000e6) - 1);
+        emit IGrovePrimeVault.Deposit(7, bob, bob, sUSDS.convertToShares(800_000e18), 800_000e18 - 1, grPrime.convertToShares(800_000e18) - 1);
 
         // Deposit Request 9 (Partial)
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(200_000e6) + 3);
+        emit IERC20.Transfer(address(0), ali, grPrime.convertToShares(200_000e18) + 3);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Deposit(9, ali, ali, spUSDC.convertToShares(200_000e6) + 3, 200_000e6 + 3, grPrime.convertToShares(200_000e6) + 3);
+        emit IGrovePrimeVault.Deposit(9, ali, ali, sUSDS.convertToShares(200_000e18) + 4, 200_000e18 + 3, grPrime.convertToShares(200_000e18) + 3);
 
         vm.prank(operator);
         grPrime.processPendingDeposits(type(uint256).max, type(uint256).max);
 
-        assetsDeposited = 400_000e6 + 800_000e6 + 200_000e6;  // Remaining ~400k of request 6, then only ~200k of the last 1MM deposit
+        assetsDeposited = 400_000e18 + 800_000e18 + 200_000e18;  // Remaining ~400k of request 6, then only ~200k of the last 1MM deposit
 
         vaultState.totalAssets            += assetsDeposited - 1;
-        vaultState.availableCapacityValue -= assetsDeposited - 2;
+        vaultState.availableCapacityValue -= assetsDeposited;
 
-        vaultState.depositRequests.pendingShareValue -= assetsDeposited + 2;
+        vaultState.depositRequests.pendingShareValue -= assetsDeposited + 3;
         vaultState.depositRequests.length             = 1;
         vaultState.depositRequests.firstPendingId     = 9;
 
-        aliBalances.shareValue += 400_000e6 + 200_000e6;
-        bobBalances.shareValue += 800_000e6 - 2;
+        aliBalances.shareValue += 400_000e18 + 200_000e18 + 2;
+        bobBalances.shareValue += 800_000e18 - 2;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -947,7 +947,7 @@ contract ProcessPendingDepositsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositRequest(i);
         }
 
-        _assertDepositRequest(9, ali, ali, 800_000e6 - 4);
+        _assertDepositRequest(9, ali, ali, 800_000e18 - 5);
     }
 
 }
@@ -975,42 +975,42 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
 
         _setCapacity(0);
 
-        _requestDeposit(ali, 100_000e6);
-        _requestDeposit(bob, 200_000e6);
-        _requestDeposit(cam, 300_000e6);
-        _requestDeposit(ali, 400_000e6);
-        _requestDeposit(bob, 500_000e6);
-        _requestDeposit(cam, 600_000e6);
-        _requestDeposit(ali, 700_000e6);
-        _requestDeposit(bob, 800_000e6);
-        _requestDeposit(cam, 900_000e6);
-        _requestDeposit(ali, 1_000_000e6);
+        _requestDeposit(ali, 100_000e18);
+        _requestDeposit(bob, 200_000e18);
+        _requestDeposit(cam, 300_000e18);
+        _requestDeposit(ali, 400_000e18);
+        _requestDeposit(bob, 500_000e18);
+        _requestDeposit(cam, 600_000e18);
+        _requestDeposit(ali, 700_000e18);
+        _requestDeposit(bob, 800_000e18);
+        _requestDeposit(cam, 900_000e18);
+        _requestDeposit(ali, 1_000_000e18);
 
-        _requestDepositCancellation(ali, 0, ali, spUSDC.convertToShares(100_000e6));  // Will fail
-        _requestDepositCancellation(bob, 1, bob, spUSDC.convertToShares(200_000e6));
-        _requestDepositCancellation(cam, 2, cam, spUSDC.convertToShares(300_000e6));
-        _requestDepositCancellation(ali, 3, dan, spUSDC.convertToShares(400_000e6));  // Will fail
-        _requestDepositCancellation(bob, 4, bob, spUSDC.convertToShares(500_000e6));  // Will fail
-        _requestDepositCancellation(cam, 5, cam, spUSDC.convertToShares(600_000e6));
-        _requestDepositCancellation(ali, 6, ali, spUSDC.convertToShares(700_000e6));  // Will fail
-        _requestDepositCancellation(bob, 7, dan, spUSDC.convertToShares(800_000e6));  // Will fail
-        _requestDepositCancellation(cam, 8, cam, spUSDC.convertToShares(900_000e6));
-        _requestDepositCancellation(ali, 9, ali, spUSDC.convertToShares(1_000_000e6));
+        _requestDepositCancellation(ali, 0, ali, sUSDS.convertToShares(100_000e18));  // Will fail
+        _requestDepositCancellation(bob, 1, bob, sUSDS.convertToShares(200_000e18));
+        _requestDepositCancellation(cam, 2, cam, sUSDS.convertToShares(300_000e18));
+        _requestDepositCancellation(ali, 3, dan, sUSDS.convertToShares(400_000e18));  // Will fail
+        _requestDepositCancellation(bob, 4, bob, sUSDS.convertToShares(500_000e18));  // Will fail
+        _requestDepositCancellation(cam, 5, cam, sUSDS.convertToShares(600_000e18));
+        _requestDepositCancellation(ali, 6, ali, sUSDS.convertToShares(700_000e18));  // Will fail
+        _requestDepositCancellation(bob, 7, dan, sUSDS.convertToShares(800_000e18));  // Will fail
+        _requestDepositCancellation(cam, 8, cam, sUSDS.convertToShares(900_000e18));
+        _requestDepositCancellation(ali, 9, ali, sUSDS.convertToShares(1_000_000e18));
 
-        uint256 depositedAssets = 5_500_000e6;
+        uint256 depositedAssets = 5_500_000e18;
 
         vaultState.rho                    = vm.getBlockTimestamp();
         vaultState.chi                    = 1.049999999999999999961070145e27;
         vaultState.totalAssets            = 0;
         vaultState.totalClaimable         = 0;
         vaultState.availableCapacityValue = 0;
-        vaultState.availableLiquidAssets  = depositedAssets - 5;
+        vaultState.availableLiquidAssets  = depositedAssets - 8;
 
         vaultState.depositRequests.pendingShareValue = 0;
         vaultState.depositRequests.length            = 0;
         vaultState.depositRequests.firstPendingId    = 10;
 
-        vaultState.depositCancellationRequests.pendingShareValue = depositedAssets - 5;
+        vaultState.depositCancellationRequests.pendingShareValue = depositedAssets - 8;
         vaultState.depositCancellationRequests.length            = 10;
         vaultState.depositCancellationRequests.firstPendingId    = 0;
 
@@ -1050,7 +1050,7 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
             account           : address(grPrime),
             assets            : 0,
             shareValue        : 0,
-            savingsShareValue : depositedAssets - 5,
+            savingsShareValue : depositedAssets - 8,
             claimableAssets   : 0
         });
 
@@ -1067,28 +1067,28 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositRequest(i);
         }
 
-        _assertDepositCancellationRequest(0, ali, ali, 100_000e6 - 1);
-        _assertDepositCancellationRequest(1, bob, bob, 200_000e6 - 1);
-        _assertDepositCancellationRequest(2, cam, cam, 300_000e6 - 1);
-        _assertDepositCancellationRequest(3, ali, dan, 400_000e6 - 1);
-        _assertDepositCancellationRequest(4, bob, bob, 500_000e6 - 1);
-        _assertDepositCancellationRequest(5, cam, cam, 600_000e6 - 1);
-        _assertDepositCancellationRequest(6, ali, ali, 700_000e6 - 1);
-        _assertDepositCancellationRequest(7, bob, dan, 800_000e6 - 1);
-        _assertDepositCancellationRequest(8, cam, cam, 900_000e6 - 1);
-        _assertDepositCancellationRequest(9, ali, ali, 1_000_000e6 - 1);
+        _assertDepositCancellationRequest(0, ali, ali, 100_000e18 - 1);
+        _assertDepositCancellationRequest(1, bob, bob, 200_000e18 - 1);
+        _assertDepositCancellationRequest(2, cam, cam, 300_000e18 - 2);
+        _assertDepositCancellationRequest(3, ali, dan, 400_000e18 - 1);
+        _assertDepositCancellationRequest(4, bob, bob, 500_000e18 - 1);
+        _assertDepositCancellationRequest(5, cam, cam, 600_000e18 - 2);
+        _assertDepositCancellationRequest(6, ali, ali, 700_000e18 - 1);
+        _assertDepositCancellationRequest(7, bob, dan, 800_000e18 - 1);
+        _assertDepositCancellationRequest(8, cam, cam, 900_000e18 - 2);
+        _assertDepositCancellationRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     function test_processPendingDepositCancellations_fallbackRedeemReverts() external {
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.redeem.selector, spUSDC.convertToShares(100_000e6), ali, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.redeem.selector, sUSDS.convertToShares(100_000e18), ali, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.redeem.selector, spUSDC.convertToShares(100_000e6), address(grPrime), address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.redeem.selector, sUSDS.convertToShares(100_000e18), address(grPrime), address(grPrime)),
             "redeem-to-vault-reverts"
         );
 
@@ -1106,32 +1106,32 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
 
     function _setupMockCallReverts() internal {
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.redeem.selector, spUSDC.convertToShares(100_000e6), ali, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.redeem.selector, sUSDS.convertToShares(100_000e18), ali, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.redeem.selector, spUSDC.convertToShares(400_000e6), dan, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.redeem.selector, sUSDS.convertToShares(400_000e18), dan, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.redeem.selector, spUSDC.convertToShares(500_000e6), bob, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.redeem.selector, sUSDS.convertToShares(500_000e18), bob, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.redeem.selector, spUSDC.convertToShares(700_000e6), ali, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.redeem.selector, sUSDS.convertToShares(700_000e18), ali, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.redeem.selector, spUSDC.convertToShares(800_000e6), dan, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.redeem.selector, sUSDS.convertToShares(800_000e18), dan, address(grPrime)),
             ""
         );
     }
@@ -1145,72 +1145,72 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
         // Deposit Request 0
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(0, ali, ali, spUSDC.convertToShares(100_000e6), 100_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(0, ali, ali, sUSDS.convertToShares(100_000e18), 100_000e18 - 1);
 
         // Deposit Request 1
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(1, bob, bob, spUSDC.convertToShares(200_000e6), 200_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(1, bob, bob, sUSDS.convertToShares(200_000e18), 200_000e18 - 1);
 
         // Deposit Request 2
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(2, cam, cam, spUSDC.convertToShares(300_000e6), 300_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(2, cam, cam, sUSDS.convertToShares(300_000e18), 300_000e18 - 2);
 
         // Deposit Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(3, ali, dan, spUSDC.convertToShares(400_000e6), 400_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(3, ali, dan, sUSDS.convertToShares(400_000e18), 400_000e18 - 1);
 
         // Deposit Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(4, bob, bob, spUSDC.convertToShares(500_000e6), 500_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(4, bob, bob, sUSDS.convertToShares(500_000e18), 500_000e18 - 1);
 
         // Deposit Request 5
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, spUSDC.convertToShares(600_000e6), 600_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, sUSDS.convertToShares(600_000e18), 600_000e18 - 2);
 
         // Deposit Request 6
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 700_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 700_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(6, ali, ali, spUSDC.convertToShares(700_000e6), 700_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(6, ali, ali, sUSDS.convertToShares(700_000e18), 700_000e18 - 1);
 
         // Deposit Request 7
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 800_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 800_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(7, bob, dan, spUSDC.convertToShares(800_000e6), 800_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(7, bob, dan, sUSDS.convertToShares(800_000e18), 800_000e18 - 1);
 
         // Deposit Request 8
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(8, cam, cam, spUSDC.convertToShares(900_000e6), 900_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(8, cam, cam, sUSDS.convertToShares(900_000e18), 900_000e18 - 2);
 
         // Deposit Request 9
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(9, ali, ali, spUSDC.convertToShares(1_000_000e6), 1_000_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(9, ali, ali, sUSDS.convertToShares(1_000_000e18), 1_000_000e18 - 1);
 
         vm.prank(operator);
         grPrime.processPendingDepositCancellations(type(uint256).max, type(uint256).max);
 
-        uint256 totalClaimable = 100_000e6 + 400_000e6 + 500_000e6 + 700_000e6 + 800_000e6;
+        uint256 totalClaimable = 100_000e18 + 400_000e18 + 500_000e18 + 700_000e18 + 800_000e18;
 
         vaultState.totalClaimable        += totalClaimable - 5;
         vaultState.availableLiquidAssets  = 0;
@@ -1219,15 +1219,15 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
         vaultState.depositCancellationRequests.length            = 0;
         vaultState.depositCancellationRequests.firstPendingId    = 10;
 
-        aliBalances.assets          += 1_000_000e6 - 1;
-        aliBalances.claimableAssets += 100_000e6 + 700_000e6 - 2;
+        aliBalances.assets          += 1_000_000e18 - 1;
+        aliBalances.claimableAssets += 100_000e18 + 700_000e18 - 2;
 
-        bobBalances.assets          += 200_000e6 - 1;
-        bobBalances.claimableAssets += 500_000e6 - 1;
+        bobBalances.assets          += 200_000e18 - 1;
+        bobBalances.claimableAssets += 500_000e18 - 1;
 
-        camBalances.assets += 300_000e6 + 600_000e6 + 900_000e6 - 3;
+        camBalances.assets += 300_000e18 + 600_000e18 + 900_000e18 - 6;
 
-        danBalances.claimableAssets += 400_000e6 + 800_000e6 - 2;
+        danBalances.claimableAssets += 400_000e18 + 800_000e18 - 2;
 
         vaultBalances.assets            += totalClaimable - 5;
         vaultBalances.savingsShareValue  = 0;
@@ -1256,66 +1256,66 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
         // Deposit Request 0
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(0, ali, ali, spUSDC.convertToShares(100_000e6), 100_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(0, ali, ali, sUSDS.convertToShares(100_000e18), 100_000e18 - 1);
 
         // Deposit Request 1
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(1, bob, bob, spUSDC.convertToShares(200_000e6), 200_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(1, bob, bob, sUSDS.convertToShares(200_000e18), 200_000e18 - 1);
 
         // Deposit Request 2
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(2, cam, cam, spUSDC.convertToShares(300_000e6), 300_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(2, cam, cam, sUSDS.convertToShares(300_000e18), 300_000e18 - 2);
 
         // Deposit Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(3, ali, dan, spUSDC.convertToShares(400_000e6), 400_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(3, ali, dan, sUSDS.convertToShares(400_000e18), 400_000e18 - 1);
 
         // Deposit Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(4, bob, bob, spUSDC.convertToShares(500_000e6), 500_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(4, bob, bob, sUSDS.convertToShares(500_000e18), 500_000e18 - 1);
 
         // Deposit Request 5
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, spUSDC.convertToShares(600_000e6), 600_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, sUSDS.convertToShares(600_000e18), 600_000e18 - 2);
 
         vm.prank(operator);
         grPrime.processPendingDepositCancellations(type(uint256).max, maxRequests);
 
-        uint256 assetsWithdrawn = 100_000e6 + 200_000e6 + 300_000e6 + 400_000e6 + 500_000e6 + 600_000e6;
-        uint256 totalClaimable  = 100_000e6 + 400_000e6 + 500_000e6;
+        uint256 assetsWithdrawn = 100_000e18 + 200_000e18 + 300_000e18 + 400_000e18 + 500_000e18 + 600_000e18;
+        uint256 totalClaimable  = 100_000e18 + 400_000e18 + 500_000e18;
 
         vaultState.totalClaimable        += totalClaimable - 3;
-        vaultState.availableLiquidAssets -= assetsWithdrawn - 2;
+        vaultState.availableLiquidAssets -= assetsWithdrawn - 5;
 
-        vaultState.depositCancellationRequests.pendingShareValue -= assetsWithdrawn - 2;
+        vaultState.depositCancellationRequests.pendingShareValue -= assetsWithdrawn - 5;
         vaultState.depositCancellationRequests.length            = 4;
         vaultState.depositCancellationRequests.firstPendingId    = 6;
 
-        aliBalances.claimableAssets += 100_000e6 - 1;
+        aliBalances.claimableAssets += 100_000e18 - 1;
 
-        bobBalances.assets          += 200_000e6 - 1;
-        bobBalances.claimableAssets += 500_000e6 - 1;
+        bobBalances.assets          += 200_000e18 - 1;
+        bobBalances.claimableAssets += 500_000e18 - 1;
 
-        camBalances.assets += 300_000e6 + 600_000e6 - 2;
+        camBalances.assets += 300_000e18 + 600_000e18 - 4;
 
-        danBalances.claimableAssets += 400_000e6 - 1;
+        danBalances.claimableAssets += 400_000e18 - 1;
 
         vaultBalances.assets            += totalClaimable - 3;
-        vaultBalances.savingsShareValue -= assetsWithdrawn - 2;
+        vaultBalances.savingsShareValue -= assetsWithdrawn - 5;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -1329,16 +1329,16 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositCancellationRequest(i);
         }
 
-        _assertDepositCancellationRequest(6, ali, ali, 700_000e6 - 1);
-        _assertDepositCancellationRequest(7, bob, dan, 800_000e6 - 1);
-        _assertDepositCancellationRequest(8, cam, cam, 900_000e6 - 1);
-        _assertDepositCancellationRequest(9, ali, ali, 1_000_000e6 - 1);
+        _assertDepositCancellationRequest(6, ali, ali, 700_000e18 - 1);
+        _assertDepositCancellationRequest(7, bob, dan, 800_000e18 - 1);
+        _assertDepositCancellationRequest(8, cam, cam, 900_000e18 - 2);
+        _assertDepositCancellationRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     function test_processPendingDepositCancellations_limitedMaxSavingsShares_infiniteMaxRequests() external {
         _setupMockCallReverts();
 
-        uint256 maxSavingsShares = spUSDC.convertToShares(2_000_000e6);
+        uint256 maxSavingsShares = sUSDS.convertToShares(2_000_000e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.ProcessPendingDepositCancellations(operator, maxSavingsShares, type(uint256).max);
@@ -1346,66 +1346,66 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
         // Deposit Request 0
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(0, ali, ali, spUSDC.convertToShares(100_000e6), 100_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(0, ali, ali, sUSDS.convertToShares(100_000e18), 100_000e18 - 1);
 
         // Deposit Request 1
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(1, bob, bob, spUSDC.convertToShares(200_000e6), 200_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(1, bob, bob, sUSDS.convertToShares(200_000e18), 200_000e18 - 1);
 
         // Deposit Request 2
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(2, cam, cam, spUSDC.convertToShares(300_000e6), 300_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(2, cam, cam, sUSDS.convertToShares(300_000e18), 300_000e18 - 2);
 
         // Deposit Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(3, ali, dan, spUSDC.convertToShares(400_000e6), 400_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(3, ali, dan, sUSDS.convertToShares(400_000e18), 400_000e18 - 1);
 
         // Deposit Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(4, bob, bob, spUSDC.convertToShares(500_000e6), 500_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(4, bob, bob, sUSDS.convertToShares(500_000e18), 500_000e18 - 1);
 
         // Deposit Request 5
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, spUSDC.convertToShares(500_000e6) + 2, 500_000e6 + 1);  // Only 500k of the 600k is processed
+        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, sUSDS.convertToShares(500_000e18) + 3, 500_000e18 + 2);  // Only 500k of the 600k is processed
 
         vm.prank(operator);
         grPrime.processPendingDepositCancellations(maxSavingsShares, type(uint256).max);
 
-        uint256 assetsWithdrawn = 100_000e6 + 200_000e6 + 300_000e6 + 400_000e6 + 500_000e6 + 500_000e6;  // Only 500k of the last request is processed
-        uint256 totalClaimable  = 100_000e6 + 400_000e6 + 500_000e6;
+        uint256 assetsWithdrawn = 100_000e18 + 200_000e18 + 300_000e18 + 400_000e18 + 500_000e18 + 500_000e18;  // Only 500k of the last request is processed
+        uint256 totalClaimable  = 100_000e18 + 400_000e18 + 500_000e18;
 
         vaultState.totalClaimable        += totalClaimable - 3;
-        vaultState.availableLiquidAssets -= assetsWithdrawn;
+        vaultState.availableLiquidAssets -= assetsWithdrawn - 1;
 
-        vaultState.depositCancellationRequests.pendingShareValue -= assetsWithdrawn;
+        vaultState.depositCancellationRequests.pendingShareValue -= assetsWithdrawn - 1;
         vaultState.depositCancellationRequests.length            = 5;
         vaultState.depositCancellationRequests.firstPendingId    = 5;
 
-        aliBalances.claimableAssets += 100_000e6 - 1;
+        aliBalances.claimableAssets += 100_000e18 - 1;
 
-        bobBalances.assets          += 200_000e6 - 1;
-        bobBalances.claimableAssets += 500_000e6 - 1;
+        bobBalances.assets          += 200_000e18 - 1;
+        bobBalances.claimableAssets += 500_000e18 - 1;
 
-        camBalances.assets += 300_000e6 + 500_000e6;
+        camBalances.assets += 300_000e18 + 500_000e18;
 
-        danBalances.claimableAssets += 400_000e6 - 1;
+        danBalances.claimableAssets += 400_000e18 - 1;
 
         vaultBalances.assets            += totalClaimable - 3;
-        vaultBalances.savingsShareValue -= assetsWithdrawn;
+        vaultBalances.savingsShareValue -= assetsWithdrawn - 1;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -1419,17 +1419,17 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositCancellationRequest(i);
         }
 
-        _assertDepositCancellationRequest(5, cam, cam, 100_000e6 - 2);
-        _assertDepositCancellationRequest(6, ali, ali, 700_000e6 - 1);
-        _assertDepositCancellationRequest(7, bob, dan, 800_000e6 - 1);
-        _assertDepositCancellationRequest(8, cam, cam, 900_000e6 - 1);
-        _assertDepositCancellationRequest(9, ali, ali, 1_000_000e6 - 1);
+        _assertDepositCancellationRequest(5, cam, cam, 100_000e18 - 4);
+        _assertDepositCancellationRequest(6, ali, ali, 700_000e18 - 1);
+        _assertDepositCancellationRequest(7, bob, dan, 800_000e18 - 1);
+        _assertDepositCancellationRequest(8, cam, cam, 900_000e18 - 2);
+        _assertDepositCancellationRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     function test_processPendingDepositCancellations_multipleCalls() external {
         _setupMockCallReverts();
 
-        uint256 maxSavingsShares = spUSDC.convertToShares(2_000_000e6);
+        uint256 maxSavingsShares = sUSDS.convertToShares(2_000_000e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.ProcessPendingDepositCancellations(operator, maxSavingsShares, type(uint256).max);
@@ -1437,66 +1437,66 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
         // Deposit Request 0
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(0, ali, ali, spUSDC.convertToShares(100_000e6), 100_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(0, ali, ali, sUSDS.convertToShares(100_000e18), 100_000e18 - 1);
 
         // Deposit Request 1
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(1, bob, bob, spUSDC.convertToShares(200_000e6), 200_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(1, bob, bob, sUSDS.convertToShares(200_000e18), 200_000e18 - 1);
 
         // Deposit Request 2
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(2, cam, cam, spUSDC.convertToShares(300_000e6), 300_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(2, cam, cam, sUSDS.convertToShares(300_000e18), 300_000e18 - 2);
 
         // Deposit Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(3, ali, dan, spUSDC.convertToShares(400_000e6), 400_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(3, ali, dan, sUSDS.convertToShares(400_000e18), 400_000e18 - 1);
 
         // Deposit Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(4, bob, bob, spUSDC.convertToShares(500_000e6), 500_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(4, bob, bob, sUSDS.convertToShares(500_000e18), 500_000e18 - 1);
 
         // Deposit Request 5 (Partial)
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, spUSDC.convertToShares(500_000e6) + 2, 500_000e6 + 1);  // Only 500k of the 600k is processed
+        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, sUSDS.convertToShares(500_000e18) + 3, 500_000e18 + 2);  // Only 500k of the 600k is processed
 
         vm.prank(operator);
         grPrime.processPendingDepositCancellations(maxSavingsShares, type(uint256).max);
 
-        uint256 assetsWithdrawn = 100_000e6 + 200_000e6 + 300_000e6 + 400_000e6 + 500_000e6 + 500_000e6;  // Only 500k of the last request is processed
-        uint256 totalClaimable  = 100_000e6 + 400_000e6 + 500_000e6;
+        uint256 assetsWithdrawn = 100_000e18 + 200_000e18 + 300_000e18 + 400_000e18 + 500_000e18 + 500_000e18;  // Only 500k of the last request is processed
+        uint256 totalClaimable  = 100_000e18 + 400_000e18 + 500_000e18;
 
         vaultState.totalClaimable        += totalClaimable - 3;
-        vaultState.availableLiquidAssets -= assetsWithdrawn;
+        vaultState.availableLiquidAssets -= assetsWithdrawn - 1;
 
-        vaultState.depositCancellationRequests.pendingShareValue -= assetsWithdrawn;
+        vaultState.depositCancellationRequests.pendingShareValue -= assetsWithdrawn - 1;
         vaultState.depositCancellationRequests.length             = 5;
         vaultState.depositCancellationRequests.firstPendingId     = 5;
 
-        aliBalances.claimableAssets += 100_000e6 - 1;
+        aliBalances.claimableAssets += 100_000e18 - 1;
 
-        bobBalances.assets          += 200_000e6 - 1;
-        bobBalances.claimableAssets += 500_000e6 - 1;
+        bobBalances.assets          += 200_000e18 - 1;
+        bobBalances.claimableAssets += 500_000e18 - 1;
 
-        camBalances.assets += 300_000e6 + 500_000e6;
+        camBalances.assets += 300_000e18 + 500_000e18;
 
-        danBalances.claimableAssets += 400_000e6 - 1;
+        danBalances.claimableAssets += 400_000e18 - 1;
 
         vaultBalances.assets            += totalClaimable - 3;
-        vaultBalances.savingsShareValue -= assetsWithdrawn;
+        vaultBalances.savingsShareValue -= assetsWithdrawn - 1;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -1510,11 +1510,11 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositCancellationRequest(i);
         }
 
-        _assertDepositCancellationRequest(5, cam, cam, 100_000e6 - 2);  // Partial fill
-        _assertDepositCancellationRequest(6, ali, ali, 700_000e6 - 1);
-        _assertDepositCancellationRequest(7, bob, dan, 800_000e6 - 1);
-        _assertDepositCancellationRequest(8, cam, cam, 900_000e6 - 1);
-        _assertDepositCancellationRequest(9, ali, ali, 1_000_000e6 - 1);
+        _assertDepositCancellationRequest(5, cam, cam, 100_000e18 - 4);  // Partial fill
+        _assertDepositCancellationRequest(6, ali, ali, 700_000e18 - 1);
+        _assertDepositCancellationRequest(7, bob, dan, 800_000e18 - 1);
+        _assertDepositCancellationRequest(8, cam, cam, 900_000e18 - 2);
+        _assertDepositCancellationRequest(9, ali, ali, 1_000_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.ProcessPendingDepositCancellations(operator, type(uint256).max, type(uint256).max);
@@ -1522,38 +1522,38 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
         // Deposit Request 5 (Remainder)
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, spUSDC.convertToShares(100_000e6) - 1, 100_000e6 - 2);
+        emit IGrovePrimeVault.DepositCancellation(5, cam, cam, sUSDS.convertToShares(100_000e18) - 3, 100_000e18 - 4);
 
         // Deposit Request 6
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 700_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 700_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(6, ali, ali, spUSDC.convertToShares(700_000e6), 700_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(6, ali, ali, sUSDS.convertToShares(700_000e18), 700_000e18 - 1);
 
         // Deposit Request 7
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 800_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 800_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(7, bob, dan, spUSDC.convertToShares(800_000e6), 800_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(7, bob, dan, sUSDS.convertToShares(800_000e18), 800_000e18 - 1);
 
         // Deposit Request 8
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(8, cam, cam, spUSDC.convertToShares(900_000e6), 900_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(8, cam, cam, sUSDS.convertToShares(900_000e18), 900_000e18 - 2);
 
         // Deposit Request 9
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.DepositCancellation(9, ali, ali, spUSDC.convertToShares(1_000_000e6), 1_000_000e6 - 1);
+        emit IGrovePrimeVault.DepositCancellation(9, ali, ali, sUSDS.convertToShares(1_000_000e18), 1_000_000e18 - 1);
 
         vm.prank(operator);
         grPrime.processPendingDepositCancellations(type(uint256).max, type(uint256).max);
 
-        totalClaimable = 700_000e6 + 800_000e6;
+        totalClaimable = 700_000e18 + 800_000e18;
 
         vaultState.totalClaimable        += totalClaimable - 2;
         vaultState.availableLiquidAssets  = 0;
@@ -1562,12 +1562,12 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
         vaultState.depositCancellationRequests.length            = 0;
         vaultState.depositCancellationRequests.firstPendingId    = 10;
 
-        aliBalances.assets          += 1_000_000e6 - 1;
-        aliBalances.claimableAssets += 700_000e6 - 1;
+        aliBalances.assets          += 1_000_000e18 - 1;
+        aliBalances.claimableAssets += 700_000e18 - 1;
 
-        camBalances.assets += 100_000e6 + 900_000e6 - 3;
+        camBalances.assets += 100_000e18 + 900_000e18 - 6;
 
-        danBalances.claimableAssets += 800_000e6 - 1;
+        danBalances.claimableAssets += 800_000e18 - 1;
 
         vaultBalances.assets            += totalClaimable - 2;
         vaultBalances.savingsShareValue  = 0;
@@ -1589,6 +1589,8 @@ contract ProcessPendingDepositsCancellationsTests is GrovePrimeVaultTests {
 
 contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
 
+    uint256 internal constant DUST = 10;
+
     address internal ali = makeAddr("ali");
     address internal bob = makeAddr("bob");
     address internal cam = makeAddr("cam");
@@ -1608,47 +1610,48 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         vm.label(cam, "cam");
         vm.label(dan, "dan");
 
-        // All deposits will be filled instantly
+        // All deposits will be filled instantly. Each deposit carries a few extra wei so that the
+        // per-request `convertToShares` amounts below, rounded independently, never exceed the balance.
 
-        _requestDeposit(ali, 100_000e6 + 400_000e6 + 700_000e6 + 1_000_000e6);
-        _requestDeposit(bob, 200_000e6 + 500_000e6 + 800_000e6);
-        _requestDeposit(cam, 300_000e6 + 600_000e6 + 900_000e6);
+        _requestDeposit(ali, 100_000e18 + 400_000e18 + 700_000e18 + 1_000_000e18 + DUST);
+        _requestDeposit(bob, 200_000e18 + 500_000e18 + 800_000e18 + DUST);
+        _requestDeposit(cam, 300_000e18 + 600_000e18 + 900_000e18 + DUST);
 
-        _requestRedeem(ali, ali, grPrime.convertToShares(100_000e6));  // Will fail
-        _requestRedeem(bob, bob, grPrime.convertToShares(200_000e6));
-        _requestRedeem(cam, cam, grPrime.convertToShares(300_000e6));
-        _requestRedeem(ali, dan, grPrime.convertToShares(400_000e6));  // Will fail
-        _requestRedeem(bob, bob, grPrime.convertToShares(500_000e6));  // Will fail
-        _requestRedeem(cam, cam, grPrime.convertToShares(600_000e6));
-        _requestRedeem(ali, ali, grPrime.convertToShares(700_000e6));  // Will fail
-        _requestRedeem(bob, dan, grPrime.convertToShares(800_000e6));  // Will fail
-        _requestRedeem(cam, cam, grPrime.convertToShares(900_000e6));
-        _requestRedeem(ali, ali, grPrime.convertToShares(1_000_000e6));
+        _requestRedeem(ali, ali, grPrime.convertToShares(100_000e18));  // Will fail
+        _requestRedeem(bob, bob, grPrime.convertToShares(200_000e18));
+        _requestRedeem(cam, cam, grPrime.convertToShares(300_000e18));
+        _requestRedeem(ali, dan, grPrime.convertToShares(400_000e18));  // Will fail
+        _requestRedeem(bob, bob, grPrime.convertToShares(500_000e18));  // Will fail
+        _requestRedeem(cam, cam, grPrime.convertToShares(600_000e18));
+        _requestRedeem(ali, ali, grPrime.convertToShares(700_000e18));  // Will fail
+        _requestRedeem(bob, dan, grPrime.convertToShares(800_000e18));  // Will fail
+        _requestRedeem(cam, cam, grPrime.convertToShares(900_000e18));
+        _requestRedeem(ali, ali, grPrime.convertToShares(1_000_000e18));
 
-        uint256 depositedAssets = 5_500_000e6;
+        uint256 depositedAssets = 5_500_000e18 + 3 * DUST;
 
-        uint256 targetAssets = 200_000e6 + 300_000e6 + 600_000e6 + 900_000e6 + 200_000e6;  // Only 200k of the last 1MM deposit
+        uint256 targetAssets = 200_000e18 + 300_000e18 + 600_000e18 + 900_000e18 + 200_000e18;  // Only 200k of the last 1MM deposit
 
-        _take(spUSDC.convertToShares(800_000e6));  // 800k so the last redeem cannot be fully fulfilled
+        _take(sUSDS.convertToShares(800_000e18));  // 800k so the last redeem cannot be fully fulfilled
 
         vaultState.rho                     = vm.getBlockTimestamp();
         vaultState.chi                     = 1.049999999999999999961070145e27;
-        vaultState.totalAssets             = depositedAssets - 5;
-        vaultState.availableCapacityValue -= depositedAssets - 5;
-        vaultState.availableLiquidAssets   = depositedAssets - 800_000e6 - 2;
+        vaultState.totalAssets             = depositedAssets - 6;
+        vaultState.availableCapacityValue -= depositedAssets - 6;
+        vaultState.availableLiquidAssets   = depositedAssets - 800_000e18 - 2;
 
         vaultState.depositRequests.pendingShareValue = 0;
         vaultState.depositRequests.length            = 0;
         vaultState.depositRequests.firstPendingId    = 3;
 
-        vaultState.redeemRequests.pendingShareValue = depositedAssets - 6;
+        vaultState.redeemRequests.pendingShareValue = depositedAssets - 3 * DUST - 5;
         vaultState.redeemRequests.length            = 10;
         vaultState.redeemRequests.firstPendingId    = 0;
 
         aliBalances = AccountBalances({
             account           : ali,
             assets            : 0,
-            shareValue        : 1,
+            shareValue        : 8,  // Leftover DUST, less rounding
             savingsShareValue : 0,
             claimableAssets   : 0
         });
@@ -1656,7 +1659,7 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         bobBalances = AccountBalances({
             account           : bob,
             assets            : 0,
-            shareValue        : 0,
+            shareValue        : 9,  // Leftover DUST, less rounding
             savingsShareValue : 0,
             claimableAssets   : 0
         });
@@ -1664,7 +1667,7 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         camBalances = AccountBalances({
             account           : cam,
             assets            : 0,
-            shareValue        : 0,
+            shareValue        : 10,  // Leftover DUST, less rounding
             savingsShareValue : 0,
             claimableAssets   : 0
         });
@@ -1680,8 +1683,8 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         vaultBalances = AccountBalances({
             account           : address(grPrime),
             assets            : 0,
-            shareValue        : depositedAssets - 6,
-            savingsShareValue : depositedAssets - 800_000e6 - 2,
+            shareValue        : depositedAssets - 3 * DUST - 5,
+            savingsShareValue : depositedAssets - 800_000e18 - 2,
             claimableAssets   : 0
         });
 
@@ -1698,28 +1701,28 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
             grPrime.getPendingDepositRequest(i);
         }
 
-        _assertRedeemRequest(0, ali, ali, 100_000e6 - 1);
-        _assertRedeemRequest(1, bob, bob, 200_000e6 - 1);
-        _assertRedeemRequest(2, cam, cam, 300_000e6 - 1);
-        _assertRedeemRequest(3, ali, dan, 400_000e6 - 1);
-        _assertRedeemRequest(4, bob, bob, 500_000e6 - 1);
-        _assertRedeemRequest(5, cam, cam, 600_000e6 - 1);
-        _assertRedeemRequest(6, ali, ali, 700_000e6 - 1);
-        _assertRedeemRequest(7, bob, dan, 800_000e6 - 1);
-        _assertRedeemRequest(8, cam, cam, 900_000e6 - 1);
-        _assertRedeemRequest(9, ali, ali, 1_000_000e6 - 2);
+        _assertRedeemRequest(0, ali, ali, 100_000e18 - 1);
+        _assertRedeemRequest(1, bob, bob, 200_000e18 - 1);
+        _assertRedeemRequest(2, cam, cam, 300_000e18 - 1);
+        _assertRedeemRequest(3, ali, dan, 400_000e18 - 1);
+        _assertRedeemRequest(4, bob, bob, 500_000e18 - 1);
+        _assertRedeemRequest(5, cam, cam, 600_000e18 - 1);
+        _assertRedeemRequest(6, ali, ali, 700_000e18 - 1);
+        _assertRedeemRequest(7, bob, dan, 800_000e18 - 1);
+        _assertRedeemRequest(8, cam, cam, 900_000e18 - 1);
+        _assertRedeemRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     function test_processPendingRedeems_fallbackWithdrawReverts() external {
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.withdraw.selector, 100_000e6 - 1, ali, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.withdraw.selector, 100_000e18 - 1, ali, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.withdraw.selector, 100_000e6 - 1, address(grPrime), address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.withdraw.selector, 100_000e18 - 1, address(grPrime), address(grPrime)),
             "withdraw-to-vault-reverts"
         );
 
@@ -1730,32 +1733,32 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
 
     function _setupMockCallReverts() internal {
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.withdraw.selector, 100_000e6 - 1, ali, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.withdraw.selector, 100_000e18 - 1, ali, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.withdraw.selector, 400_000e6 - 1, dan, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.withdraw.selector, 400_000e18 - 1, dan, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.withdraw.selector, 500_000e6 - 1, bob, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.withdraw.selector, 500_000e18 - 1, bob, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.withdraw.selector, 700_000e6 - 1, ali, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.withdraw.selector, 700_000e18 - 1, ali, address(grPrime)),
             ""
         );
 
         vm.mockCallRevert(
-            address(spUSDC),
-            abi.encodeWithSelector(IGroveVaultLike.withdraw.selector, 800_000e6 - 1, dan, address(grPrime)),
+            address(sUSDS),
+            abi.encodeWithSelector(ISavingsLike.withdraw.selector, 800_000e18 - 1, dan, address(grPrime)),
             ""
         );
     }
@@ -1769,125 +1772,125 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         // Redeem Request 0
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(0, ali, ali, grPrime.convertToShares(100_000e6), spUSDC.convertToShares(100_000e6), 100_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(0, ali, ali, grPrime.convertToShares(100_000e18), sUSDS.convertToShares(100_000e18), 100_000e18 - 1);
 
         // Redeem Request 1
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(1, bob, bob, grPrime.convertToShares(200_000e6), spUSDC.convertToShares(200_000e6), 200_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(1, bob, bob, grPrime.convertToShares(200_000e18), sUSDS.convertToShares(200_000e18), 200_000e18 - 1);
 
         // Redeem Request 2
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(300_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(300_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(2, cam, cam, grPrime.convertToShares(300_000e6), spUSDC.convertToShares(300_000e6), 300_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(2, cam, cam, grPrime.convertToShares(300_000e18), sUSDS.convertToShares(300_000e18) + 1, 300_000e18 - 1);
 
         // Redeem Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(400_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(400_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(3, ali, dan, grPrime.convertToShares(400_000e6), spUSDC.convertToShares(400_000e6), 400_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(3, ali, dan, grPrime.convertToShares(400_000e18), sUSDS.convertToShares(400_000e18), 400_000e18 - 1);
 
         // Redeem Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(4, bob, bob, grPrime.convertToShares(500_000e6), spUSDC.convertToShares(500_000e6), 500_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(4, bob, bob, grPrime.convertToShares(500_000e18), sUSDS.convertToShares(500_000e18), 500_000e18 - 1);
 
         // Redeem Request 5
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(600_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(600_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(600_000e6), spUSDC.convertToShares(600_000e6), 600_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(600_000e18), sUSDS.convertToShares(600_000e18) + 1, 600_000e18 - 1);
 
         // Redeem Request 6
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(700_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(700_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 700_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 700_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(6, ali, ali, grPrime.convertToShares(700_000e6), spUSDC.convertToShares(700_000e6), 700_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(6, ali, ali, grPrime.convertToShares(700_000e18), sUSDS.convertToShares(700_000e18), 700_000e18 - 1);
 
         // Redeem Request 7
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(800_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(800_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 800_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 800_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(7, bob, dan, grPrime.convertToShares(800_000e6), spUSDC.convertToShares(800_000e6), 800_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(7, bob, dan, grPrime.convertToShares(800_000e18), sUSDS.convertToShares(800_000e18), 800_000e18 - 1);
 
         // Redeem Request 8
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(900_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(900_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(8, cam, cam, grPrime.convertToShares(900_000e6), spUSDC.convertToShares(900_000e6), 900_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(8, cam, cam, grPrime.convertToShares(900_000e18), sUSDS.convertToShares(900_000e18) + 1, 900_000e18 - 1);
 
         // Redeem Request 9
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e6) + 3);  // Only ~200k of the last 1MM deposit
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e18) + 29);  // Only ~200k of the last 1MM deposit
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(9, ali, ali, grPrime.convertToShares(200_000e6) + 3, spUSDC.convertToShares(200_000e6) + 2, 200_000e6 + 2);
+        emit IGrovePrimeVault.Redeem(9, ali, ali, grPrime.convertToShares(200_000e18) + 29, sUSDS.convertToShares(200_000e18) + 27, 200_000e18 + 30);  // Includes the 3 * DUST
 
         vm.prank(operator);
         grPrime.processPendingRedeems(type(uint256).max, type(uint256).max);
 
-        uint256 assetsRedeemed = 5_500_000e6 - 800_000e6;
-        uint256 totalClaimable = 100_000e6 + 400_000e6 + 500_000e6 + 700_000e6 + 800_000e6;
+        uint256 assetsRedeemed = 5_500_000e18 - 800_000e18;
+        uint256 totalClaimable = 100_000e18 + 400_000e18 + 500_000e18 + 700_000e18 + 800_000e18;
 
-        vaultState.totalAssets             = 800_000e6 - 3;
+        vaultState.totalAssets             = 800_000e18 - 3;
         vaultState.totalClaimable         += totalClaimable - 5;
-        vaultState.availableCapacityValue += assetsRedeemed - 2;
+        vaultState.availableCapacityValue += assetsRedeemed + 3 * DUST - 4;
         vaultState.availableLiquidAssets   = 1;
 
-        vaultState.redeemRequests.pendingShareValue -= assetsRedeemed - 2;
+        vaultState.redeemRequests.pendingShareValue -= assetsRedeemed + 3 * DUST - 4;
         vaultState.redeemRequests.length             = 1;
         vaultState.redeemRequests.firstPendingId     = 9;
 
-        aliBalances.assets          += 200_000e6 + 2;
-        aliBalances.claimableAssets += 100_000e6 + 700_000e6 - 2;
+        aliBalances.assets          += 200_000e18 + 3 * DUST;
+        aliBalances.claimableAssets += 100_000e18 + 700_000e18 - 2;
 
-        bobBalances.assets          += 200_000e6 - 1;
-        bobBalances.claimableAssets += 500_000e6 - 1;
+        bobBalances.assets          += 200_000e18 - 1;
+        bobBalances.claimableAssets += 500_000e18 - 1;
 
-        camBalances.assets += 300_000e6 + 600_000e6 + 900_000e6 - 3;
+        camBalances.assets += 300_000e18 + 600_000e18 + 900_000e18 - 3;
 
-        danBalances.claimableAssets += 400_000e6 + 800_000e6 - 2;
+        danBalances.claimableAssets += 400_000e18 + 800_000e18 - 2;
 
         vaultBalances.assets            += totalClaimable - 5;
-        vaultBalances.shareValue        -= assetsRedeemed - 2;
+        vaultBalances.shareValue        -= assetsRedeemed + 3 * DUST - 4;
         vaultBalances.savingsShareValue  = 1;
 
         _assertVaultState();
@@ -1902,7 +1905,7 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
             grPrime.getPendingRedeemRequest(i);
         }
 
-        _assertRedeemRequest(9, ali, ali, 800_000e6 - 4);  // Partial fill
+        _assertRedeemRequest(9, ali, ali, 800_000e18 - 3 * DUST - 1);  // Partial fill
     }
 
     function test_processPendingRedeems_infiniteMaxShares_limitedMaxRequests() external {
@@ -1916,87 +1919,87 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         // Redeem Request 0
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(0, ali, ali, grPrime.convertToShares(100_000e6), spUSDC.convertToShares(100_000e6), 100_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(0, ali, ali, grPrime.convertToShares(100_000e18), sUSDS.convertToShares(100_000e18), 100_000e18 - 1);
 
         // Redeem Request 1
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(1, bob, bob, grPrime.convertToShares(200_000e6), spUSDC.convertToShares(200_000e6), 200_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(1, bob, bob, grPrime.convertToShares(200_000e18), sUSDS.convertToShares(200_000e18), 200_000e18 - 1);
 
         // Redeem Request 2
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(300_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(300_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(2, cam, cam, grPrime.convertToShares(300_000e6), spUSDC.convertToShares(300_000e6), 300_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(2, cam, cam, grPrime.convertToShares(300_000e18), sUSDS.convertToShares(300_000e18) + 1, 300_000e18 - 1);
 
         // Redeem Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(400_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(400_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(3, ali, dan, grPrime.convertToShares(400_000e6), spUSDC.convertToShares(400_000e6), 400_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(3, ali, dan, grPrime.convertToShares(400_000e18), sUSDS.convertToShares(400_000e18), 400_000e18 - 1);
 
         // Redeem Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(4, bob, bob, grPrime.convertToShares(500_000e6), spUSDC.convertToShares(500_000e6), 500_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(4, bob, bob, grPrime.convertToShares(500_000e18), sUSDS.convertToShares(500_000e18), 500_000e18 - 1);
 
         // Redeem Request 5
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(600_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(600_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(600_000e6), spUSDC.convertToShares(600_000e6), 600_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(600_000e18), sUSDS.convertToShares(600_000e18) + 1, 600_000e18 - 1);
 
         vm.prank(operator);
         grPrime.processPendingRedeems(type(uint256).max, maxRequests);
 
-        uint256 assetsRedeemed = 100_000e6 + 200_000e6 + 300_000e6 + 400_000e6 + 500_000e6 + 600_000e6;
-        uint256 totalClaimable = 100_000e6 + 400_000e6 + 500_000e6;
+        uint256 assetsRedeemed = 100_000e18 + 200_000e18 + 300_000e18 + 400_000e18 + 500_000e18 + 600_000e18;
+        uint256 totalClaimable = 100_000e18 + 400_000e18 + 500_000e18;
 
-        vaultState.totalAssets            -= assetsRedeemed - 2;
+        vaultState.totalAssets            -= assetsRedeemed - 3;
         vaultState.totalClaimable         += totalClaimable - 3;
-        vaultState.availableCapacityValue += assetsRedeemed - 2;
-        vaultState.availableLiquidAssets  -= assetsRedeemed - 3;
+        vaultState.availableCapacityValue += assetsRedeemed - 3;
+        vaultState.availableLiquidAssets  -= assetsRedeemed - 2;
 
-        vaultState.redeemRequests.pendingShareValue -= assetsRedeemed - 2;
+        vaultState.redeemRequests.pendingShareValue -= assetsRedeemed - 3;
         vaultState.redeemRequests.length             = 4;
         vaultState.redeemRequests.firstPendingId     = 6;
 
-        aliBalances.claimableAssets += 100_000e6 - 1;
+        aliBalances.claimableAssets += 100_000e18 - 1;
 
-        bobBalances.assets          += 200_000e6 - 1;
-        bobBalances.claimableAssets += 500_000e6 - 1;
+        bobBalances.assets          += 200_000e18 - 1;
+        bobBalances.claimableAssets += 500_000e18 - 1;
 
-        camBalances.assets += 300_000e6 + 600_000e6 - 2;
+        camBalances.assets += 300_000e18 + 600_000e18 - 2;
 
-        danBalances.claimableAssets += 400_000e6 - 1;
+        danBalances.claimableAssets += 400_000e18 - 1;
 
         vaultBalances.assets            += totalClaimable - 3;
-        vaultBalances.shareValue        -= assetsRedeemed - 2;
-        vaultBalances.savingsShareValue -= assetsRedeemed - 3;
+        vaultBalances.shareValue        -= assetsRedeemed - 3;
+        vaultBalances.savingsShareValue -= assetsRedeemed - 2;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -2010,16 +2013,16 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
             grPrime.getPendingRedeemRequest(i);
         }
 
-        _assertRedeemRequest(6, ali, ali, 700_000e6 - 1);
-        _assertRedeemRequest(7, bob, dan, 800_000e6 - 1);
-        _assertRedeemRequest(8, cam, cam, 900_000e6 - 1);
-        _assertRedeemRequest(9, ali, ali, 1_000_000e6 - 2);
+        _assertRedeemRequest(6, ali, ali, 700_000e18 - 1);
+        _assertRedeemRequest(7, bob, dan, 800_000e18 - 1);
+        _assertRedeemRequest(8, cam, cam, 900_000e18 - 1);
+        _assertRedeemRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     function test_processPendingRedeems_limitedMaxShares_infiniteMaxRequests() external {
         _setupMockCallReverts();
 
-        uint256 maxShares = grPrime.convertToShares(2_000_000e6);
+        uint256 maxShares = grPrime.convertToShares(2_000_000e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.ProcessPendingRedeems(operator, maxShares, type(uint256).max);
@@ -2027,87 +2030,87 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         // Redeem Request 0
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(0, ali, ali, grPrime.convertToShares(100_000e6), spUSDC.convertToShares(100_000e6), 100_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(0, ali, ali, grPrime.convertToShares(100_000e18), sUSDS.convertToShares(100_000e18), 100_000e18 - 1);
 
         // Redeem Request 1
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(1, bob, bob, grPrime.convertToShares(200_000e6), spUSDC.convertToShares(200_000e6), 200_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(1, bob, bob, grPrime.convertToShares(200_000e18), sUSDS.convertToShares(200_000e18), 200_000e18 - 1);
 
         // Redeem Request 2
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(300_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(300_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(2, cam, cam, grPrime.convertToShares(300_000e6), spUSDC.convertToShares(300_000e6), 300_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(2, cam, cam, grPrime.convertToShares(300_000e18), sUSDS.convertToShares(300_000e18) + 1, 300_000e18 - 1);
 
         // Redeem Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(400_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(400_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(3, ali, dan, grPrime.convertToShares(400_000e6), spUSDC.convertToShares(400_000e6), 400_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(3, ali, dan, grPrime.convertToShares(400_000e18), sUSDS.convertToShares(400_000e18), 400_000e18 - 1);
 
         // Redeem Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(4, bob, bob, grPrime.convertToShares(500_000e6), spUSDC.convertToShares(500_000e6), 500_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(4, bob, bob, grPrime.convertToShares(500_000e18), sUSDS.convertToShares(500_000e18), 500_000e18 - 1);
 
         // Redeem Request 5
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e6) + 1);
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e18) + 2);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(500_000e6) + 1, spUSDC.convertToShares(500_000e6) + 1, 500_000e6);
+        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(500_000e18) + 2, sUSDS.convertToShares(500_000e18) + 2, 500_000e18 + 1);
 
         vm.prank(operator);
         grPrime.processPendingRedeems(maxShares, type(uint256).max);
 
-        uint256 assetsRedeemed = 2_000_000e6;
-        uint256 totalClaimable = 100_000e6 + 400_000e6 + 500_000e6;
+        uint256 assetsRedeemed = 2_000_000e18;
+        uint256 totalClaimable = 100_000e18 + 400_000e18 + 500_000e18;
 
         vaultState.totalAssets            -= assetsRedeemed - 1;
         vaultState.totalClaimable         += totalClaimable - 3;
         vaultState.availableCapacityValue += assetsRedeemed - 1;
-        vaultState.availableLiquidAssets  -= assetsRedeemed - 2;
+        vaultState.availableLiquidAssets  -= assetsRedeemed;
 
         vaultState.redeemRequests.pendingShareValue -= assetsRedeemed - 1;
         vaultState.redeemRequests.length             = 5;
         vaultState.redeemRequests.firstPendingId     = 5;
 
-        aliBalances.claimableAssets += 100_000e6 - 1;
+        aliBalances.claimableAssets += 100_000e18 - 1;
 
-        bobBalances.assets          += 200_000e6 - 1;
-        bobBalances.claimableAssets += 500_000e6 - 1;
+        bobBalances.assets          += 200_000e18 - 1;
+        bobBalances.claimableAssets += 500_000e18 - 1;
 
-        camBalances.assets += 300_000e6 + 500_000e6 - 1;
+        camBalances.assets += 300_000e18 + 500_000e18;
 
-        danBalances.claimableAssets += 400_000e6 - 1;
+        danBalances.claimableAssets += 400_000e18 - 1;
 
         vaultBalances.assets            += totalClaimable - 3;
         vaultBalances.shareValue        -= assetsRedeemed - 1;
-        vaultBalances.savingsShareValue -= assetsRedeemed - 2;
+        vaultBalances.savingsShareValue -= assetsRedeemed;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -2121,17 +2124,17 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
             grPrime.getPendingRedeemRequest(i);
         }
 
-        _assertRedeemRequest(5, cam, cam, 100_000e6 - 2);  // 500k out of 600k redeemed
-        _assertRedeemRequest(6, ali, ali, 700_000e6 - 1);
-        _assertRedeemRequest(7, bob, dan, 800_000e6 - 1);
-        _assertRedeemRequest(8, cam, cam, 900_000e6 - 1);
-        _assertRedeemRequest(9, ali, ali, 1_000_000e6 - 2);
+        _assertRedeemRequest(5, cam, cam, 100_000e18 - 3);  // 500k out of 600k redeemed
+        _assertRedeemRequest(6, ali, ali, 700_000e18 - 1);
+        _assertRedeemRequest(7, bob, dan, 800_000e18 - 1);
+        _assertRedeemRequest(8, cam, cam, 900_000e18 - 1);
+        _assertRedeemRequest(9, ali, ali, 1_000_000e18 - 1);
     }
 
     function test_processPendingRedeems_multipleCalls() external {
         _setupMockCallReverts();
 
-        uint256 maxShares = grPrime.convertToShares(2_000_000e6);
+        uint256 maxShares = grPrime.convertToShares(2_000_000e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.ProcessPendingRedeems(operator, maxShares, type(uint256).max);
@@ -2139,87 +2142,87 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         // Redeem Request 0
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 100_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(0, ali, ali, grPrime.convertToShares(100_000e6), spUSDC.convertToShares(100_000e6), 100_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(0, ali, ali, grPrime.convertToShares(100_000e18), sUSDS.convertToShares(100_000e18), 100_000e18 - 1);
 
         // Redeem Request 1
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(1, bob, bob, grPrime.convertToShares(200_000e6), spUSDC.convertToShares(200_000e6), 200_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(1, bob, bob, grPrime.convertToShares(200_000e18), sUSDS.convertToShares(200_000e18), 200_000e18 - 1);
 
         // Redeem Request 2
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(300_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(300_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(2, cam, cam, grPrime.convertToShares(300_000e6), spUSDC.convertToShares(300_000e6), 300_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(2, cam, cam, grPrime.convertToShares(300_000e18), sUSDS.convertToShares(300_000e18) + 1, 300_000e18 - 1);
 
         // Redeem Request 3
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(400_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(400_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 400_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(3, ali, dan, grPrime.convertToShares(400_000e6), spUSDC.convertToShares(400_000e6), 400_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(3, ali, dan, grPrime.convertToShares(400_000e18), sUSDS.convertToShares(400_000e18), 400_000e18 - 1);
 
         // Redeem Request 4
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(bob, 500_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(4, bob, bob, grPrime.convertToShares(500_000e6), spUSDC.convertToShares(500_000e6), 500_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(4, bob, bob, grPrime.convertToShares(500_000e18), sUSDS.convertToShares(500_000e18), 500_000e18 - 1);
 
         // Redeem Request 5 (Partial)
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e6) + 1);
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(500_000e18) + 2);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(500_000e6) + 1, spUSDC.convertToShares(500_000e6) + 1, 500_000e6);  // Only 500k of the 600k is processed
+        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(500_000e18) + 2, sUSDS.convertToShares(500_000e18) + 2, 500_000e18 + 1);  // Only 500k of the 600k is processed
 
         vm.prank(operator);
         grPrime.processPendingRedeems(maxShares, type(uint256).max);
 
-        uint256 assetsRedeemed = 100_000e6 + 200_000e6 + 300_000e6 + 400_000e6 + 500_000e6 + 500_000e6;  // Only 500k of the last request is processed
-        uint256 totalClaimable = 100_000e6 + 400_000e6 + 500_000e6;
+        uint256 assetsRedeemed = 100_000e18 + 200_000e18 + 300_000e18 + 400_000e18 + 500_000e18 + 500_000e18;  // Only 500k of the last request is processed
+        uint256 totalClaimable = 100_000e18 + 400_000e18 + 500_000e18;
 
         vaultState.totalAssets            -= assetsRedeemed - 1;
         vaultState.totalClaimable         += totalClaimable - 3;
         vaultState.availableCapacityValue += assetsRedeemed - 1;
-        vaultState.availableLiquidAssets  -= assetsRedeemed - 2;
+        vaultState.availableLiquidAssets  -= assetsRedeemed;
 
         vaultState.redeemRequests.pendingShareValue -= assetsRedeemed - 1;
         vaultState.redeemRequests.length             = 5;
         vaultState.redeemRequests.firstPendingId     = 5;
 
-        aliBalances.claimableAssets += 100_000e6 - 1;
+        aliBalances.claimableAssets += 100_000e18 - 1;
 
-        bobBalances.assets          += 200_000e6 - 1;
-        bobBalances.claimableAssets += 500_000e6 - 1;
+        bobBalances.assets          += 200_000e18 - 1;
+        bobBalances.claimableAssets += 500_000e18 - 1;
 
-        camBalances.assets += 300_000e6 + 500_000e6 - 1;
+        camBalances.assets += 300_000e18 + 500_000e18;
 
-        danBalances.claimableAssets += 400_000e6 - 1;
+        danBalances.claimableAssets += 400_000e18 - 1;
 
         vaultBalances.assets            += totalClaimable - 3;
         vaultBalances.shareValue        -= assetsRedeemed - 1;
-        vaultBalances.savingsShareValue -= assetsRedeemed - 2;
+        vaultBalances.savingsShareValue -= assetsRedeemed;
 
         _assertVaultState();
         _assertAccountBalances(aliBalances);
@@ -2233,11 +2236,11 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
             grPrime.getPendingRedeemRequest(i);
         }
 
-        _assertRedeemRequest(5, cam, cam, 100_000e6 - 2);  // Partial fill
-        _assertRedeemRequest(6, ali, ali, 700_000e6 - 1);
-        _assertRedeemRequest(7, bob, dan, 800_000e6 - 1);
-        _assertRedeemRequest(8, cam, cam, 900_000e6 - 1);
-        _assertRedeemRequest(9, ali, ali, 1_000_000e6 - 2);
+        _assertRedeemRequest(5, cam, cam, 100_000e18 - 3);  // Partial fill
+        _assertRedeemRequest(6, ali, ali, 700_000e18 - 1);
+        _assertRedeemRequest(7, bob, dan, 800_000e18 - 1);
+        _assertRedeemRequest(8, cam, cam, 900_000e18 - 1);
+        _assertRedeemRequest(9, ali, ali, 1_000_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.ProcessPendingRedeems(operator, type(uint256).max, type(uint256).max);
@@ -2245,73 +2248,73 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
         // Redeem Request 5 (Remainder)
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e6) - 1);
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(100_000e18) - 2);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(100_000e6) - 1, spUSDC.convertToShares(100_000e6) - 1, 100_000e6 - 2);
+        emit IGrovePrimeVault.Redeem(5, cam, cam, grPrime.convertToShares(100_000e18) - 2, sUSDS.convertToShares(100_000e18) - 2, 100_000e18 - 3);
 
         // Redeem Request 6
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(700_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(700_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 700_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(ali, 700_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(6, ali, ali, grPrime.convertToShares(700_000e6), spUSDC.convertToShares(700_000e6), 700_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(6, ali, ali, grPrime.convertToShares(700_000e18), sUSDS.convertToShares(700_000e18), 700_000e18 - 1);
 
         // Redeem Request 7
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(800_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(800_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 800_000e6 - 1);
+        emit IGrovePrimeVault.ClaimableAssetsIncreased(dan, 800_000e18 - 1);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(7, bob, dan, grPrime.convertToShares(800_000e6), spUSDC.convertToShares(800_000e6), 800_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(7, bob, dan, grPrime.convertToShares(800_000e18), sUSDS.convertToShares(800_000e18), 800_000e18 - 1);
 
         // Redeem Request 8
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(900_000e6));
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(900_000e18));
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(8, cam, cam, grPrime.convertToShares(900_000e6), spUSDC.convertToShares(900_000e6), 900_000e6 - 1);
+        emit IGrovePrimeVault.Redeem(8, cam, cam, grPrime.convertToShares(900_000e18), sUSDS.convertToShares(900_000e18) + 1, 900_000e18 - 1);
 
         // Redeem Request 9 (Partial)
 
         vm.expectEmit(address(grPrime));
-        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e6) + 4);  // Only ~200k of the last 1MM deposit
+        emit IERC20.Transfer(address(grPrime), address(0), grPrime.convertToShares(200_000e18) + 30);  // Only ~200k of the last 1MM deposit
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.Redeem(9, ali, ali, grPrime.convertToShares(200_000e6) + 4, spUSDC.convertToShares(200_000e6) + 3, 200_000e6 + 3);
+        emit IGrovePrimeVault.Redeem(9, ali, ali, grPrime.convertToShares(200_000e18) + 30, sUSDS.convertToShares(200_000e18) + 28, 200_000e18 + 31);  // Includes the 3 * DUST
 
         vm.prank(operator);
         grPrime.processPendingRedeems(type(uint256).max, type(uint256).max);
 
-        assetsRedeemed = 100_000e6 + 700_000e6 + 800_000e6 + 900_000e6 + 200_000e6;  // Remaining ~100k of request 5, then only ~200k of the last 1MM deposit
-        totalClaimable = 700_000e6 + 800_000e6;
+        assetsRedeemed = 100_000e18 + 700_000e18 + 800_000e18 + 900_000e18 + 200_000e18;  // Remaining ~100k of request 5, then only ~200k of the last 1MM deposit
+        totalClaimable = 700_000e18 + 800_000e18;
 
-        vaultState.totalAssets             = 800_000e6 - 4;
+        vaultState.totalAssets             = 800_000e18 - 4;
         vaultState.totalClaimable         += totalClaimable - 2;
-        vaultState.availableCapacityValue += assetsRedeemed;
+        vaultState.availableCapacityValue += assetsRedeemed + 3 * DUST - 2;
         vaultState.availableLiquidAssets   = 1;
 
-        vaultState.redeemRequests.pendingShareValue -= assetsRedeemed + 1;
+        vaultState.redeemRequests.pendingShareValue -= assetsRedeemed + 3 * DUST - 2;
         vaultState.redeemRequests.length             = 1;
         vaultState.redeemRequests.firstPendingId     = 9;
 
-        aliBalances.assets          += 200_000e6 + 3;
-        aliBalances.claimableAssets += 700_000e6 - 1;
+        aliBalances.assets          += 200_000e18 + 3 * DUST + 1;
+        aliBalances.claimableAssets += 700_000e18 - 1;
 
-        camBalances.assets += 100_000e6 + 900_000e6 - 3;
+        camBalances.assets += 100_000e18 + 900_000e18 - 4;
 
-        danBalances.claimableAssets += 800_000e6 - 1;
+        danBalances.claimableAssets += 800_000e18 - 1;
 
         vaultBalances.assets            += totalClaimable - 2;
-        vaultBalances.shareValue        -= assetsRedeemed + 1;
+        vaultBalances.shareValue        -= assetsRedeemed + 3 * DUST - 2;
         vaultBalances.savingsShareValue  = 1;
 
         _assertVaultState();
@@ -2326,7 +2329,7 @@ contract ProcessPendingRedeemsTests is GrovePrimeVaultTests {
             grPrime.getPendingRedeemRequest(i);
         }
 
-        _assertRedeemRequest(9, ali, ali, 800_000e6 - 6);  // Partial fill
+        _assertRedeemRequest(9, ali, ali, 800_000e18 - 3 * DUST - 2);  // Partial fill
     }
 
 }

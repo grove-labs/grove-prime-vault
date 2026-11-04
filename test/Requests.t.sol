@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { TestBase, IGroveVaultLike } from "./TestBase.t.sol";
+import { TestBase, ISavingsLike } from "./TestBase.t.sol";
 
 import { IGrovePrimeVault } from "../src/IGrovePrimeVault.sol";
 
@@ -27,7 +27,7 @@ contract RequestDepositCancellationTests is TestBase {
 
         _setCapacity(0);
 
-        depositRequestId = _requestDeposit(user, 1_000_000e6);  // Deposit Request 0 (Queued)
+        depositRequestId = _requestDeposit(user, 1_000_000e18);  // Deposit Request 0 (Queued)
 
         ( , , , requestShares ) = grPrime.getPendingDepositRequest(depositRequestId);
 
@@ -35,9 +35,9 @@ contract RequestDepositCancellationTests is TestBase {
         vaultState.chi                    = 1.049999999999999999961070145e27;
         vaultState.totalAssets            = 0;
         vaultState.availableCapacityValue = 0;
-        vaultState.availableLiquidAssets  = 1_000_000e6 - 1;
+        vaultState.availableLiquidAssets  = 1_000_000e18 - 1;
 
-        vaultState.depositRequests.pendingShareValue = 1_000_000e6 - 1;
+        vaultState.depositRequests.pendingShareValue = 1_000_000e18 - 1;
         vaultState.depositRequests.length            = 1;
         vaultState.depositRequests.firstPendingId    = 0;
 
@@ -61,12 +61,12 @@ contract RequestDepositCancellationTests is TestBase {
             account           : address(grPrime),
             assets            : 0,
             shareValue        : 0,
-            savingsShareValue : 1_000_000e6 - 1,
+            savingsShareValue : 1_000_000e18 - 1,
             claimableAssets   : 0
         });
 
         _assertVaultState();
-        _assertDepositRequest(depositRequestId, user, user, 1_000_000e6 - 1);
+        _assertDepositRequest(depositRequestId, user, user, 1_000_000e18 - 1);
 
         _assertAccountBalances(userBalances);
         _assertAccountBalances(recipientBalances);
@@ -107,7 +107,7 @@ contract RequestDepositCancellationTests is TestBase {
     }
 
     function test_requestDepositCancellation_notRequestOwner() external {
-        uint256 requestId2 = _requestDeposit(user, recipient, 1_000_000e6);
+        uint256 requestId2 = _requestDeposit(user, recipient, 1_000_000e18);
 
         ( , , , uint256 requestShares2 ) = grPrime.getPendingDepositRequest(requestId2);
 
@@ -163,12 +163,12 @@ contract RequestDepositCancellationTests is TestBase {
         vaultState.depositRequests.length            = 0;
         vaultState.depositRequests.firstPendingId    = 1;
 
-        vaultState.depositCancellationRequests.pendingShareValue = 1_000_000e6 - 1;
+        vaultState.depositCancellationRequests.pendingShareValue = 1_000_000e18 - 1;
         vaultState.depositCancellationRequests.length            = 1;
         vaultState.depositCancellationRequests.firstPendingId    = 0;
 
         _assertVaultState();
-        _assertDepositCancellationRequest(cancelRequestId, user, recipient, 1_000_000e6 - 1);
+        _assertDepositCancellationRequest(cancelRequestId, user, recipient, 1_000_000e18 - 1);
 
         // No funds move until the cancellation is processed.
 
@@ -178,7 +178,7 @@ contract RequestDepositCancellationTests is TestBase {
     }
 
     function test_requestDepositCancellation_partial() external {
-        uint256 cancelShares = spUSDC.convertToShares(400_000e6);
+        uint256 cancelShares = sUSDS.convertToShares(400_000e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.DepositCancellationRequest(depositRequestId, 0, recipient, cancelShares);
@@ -190,15 +190,15 @@ contract RequestDepositCancellationTests is TestBase {
 
         // The remainder of the deposit request stays queued.
 
-        vaultState.depositRequests.pendingShareValue = 600_000e6 - 1;
+        vaultState.depositRequests.pendingShareValue = 600_000e18;
 
-        vaultState.depositCancellationRequests.pendingShareValue = 400_000e6 - 1;
+        vaultState.depositCancellationRequests.pendingShareValue = 400_000e18 - 1;
         vaultState.depositCancellationRequests.length            = 1;
         vaultState.depositCancellationRequests.firstPendingId    = 0;
 
         _assertVaultState();
-        _assertDepositRequest(depositRequestId, user, user, 600_000e6 - 1);
-        _assertDepositCancellationRequest(cancelRequestId, user, recipient, 400_000e6 - 1);
+        _assertDepositRequest(depositRequestId, user, user, 600_000e18);
+        _assertDepositCancellationRequest(cancelRequestId, user, recipient, 400_000e18 - 1);
 
         // No funds move until the cancellation is processed.
 

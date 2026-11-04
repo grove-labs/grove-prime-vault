@@ -20,7 +20,7 @@ interface IERC20Like {
 
 }
 
-interface IGroveVaultLike {
+interface ISavingsLike {
 
     function redeem(uint256 shares, address to, address from) external returns (uint256);
 
@@ -28,22 +28,18 @@ interface IGroveVaultLike {
 
     function withdraw(uint256 assets, address to, address from) external returns (uint256);
 
-    function assetsOf(address owner) external view returns (uint256);
-
     function balanceOf(address owner) external view returns (uint256);
 
     function convertToAssets(uint256 shares) external view returns (uint256);
 
     function convertToShares(uint256 assets) external view returns (uint256);
 
-    function nowChi() external view returns (uint256);
-
 }
 
 abstract contract TestBase is Test {
 
     struct PendingRequestsState {
-        uint256 pendingShareValue;  // USDC value of spUSDC shares (deposit queue) or grPrime shares (redeem queue)
+        uint256 pendingShareValue;  // USDS value of sUSDS shares (deposit queue) or grPrime shares (redeem queue)
         uint256 length;             // Requests from firstPendingId to the end, cancelled included
         uint256 firstPendingId;     // First unfilled request id
     }
@@ -51,10 +47,10 @@ abstract contract TestBase is Test {
     struct VaultState {
         uint256 rho;                     // Last chi update timestamp
         uint256 chi;                     // Rate accumulator [ray]
-        uint256 totalAssets;             // USDC value of supply
-        uint256 totalClaimable;          // USDC value of all claimable assets
-        uint256 availableCapacityValue;  // USDC value of grPrime shares left to mint
-        uint256 availableLiquidAssets;   // USDC the vault can withdraw from spUSDC now (maxWithdraw)
+        uint256 totalAssets;             // USDS value of supply
+        uint256 totalClaimable;          // USDS value of all claimable assets
+        uint256 availableCapacityValue;  // USDS value of grPrime shares left to mint
+        uint256 availableLiquidAssets;   // USDS the vault can withdraw from sUSDS now (maxWithdraw)
         PendingRequestsState depositRequests;
         PendingRequestsState depositCancellationRequests;
         PendingRequestsState redeemRequests;
@@ -62,16 +58,16 @@ abstract contract TestBase is Test {
 
     struct AccountBalances {
         address account;            // Account being checked
-        uint256 assets;             // USDC held
-        uint256 shareValue;         // USDC value of grPrime held
-        uint256 savingsShareValue;  // USDC value of spUSDC held
-        uint256 claimableAssets;    // USDC claimable
+        uint256 assets;             // USDS held
+        uint256 shareValue;         // USDS value of grPrime held
+        uint256 savingsShareValue;  // USDS value of sUSDS held
+        uint256 claimableAssets;    // USDS claimable
     }
 
-    uint256 internal constant MINIMUM_DEPOSIT              = 100e6;
-    uint256 internal constant MINIMUM_DEPOSIT_CANCELLATION = 100e6;
-    uint256 internal constant MINIMUM_REDEEM               = 100e6;
-    uint256 internal constant VAULT_CAPACITY               = 100_000_000e6;
+    uint256 internal constant MINIMUM_DEPOSIT              = 100e18;
+    uint256 internal constant MINIMUM_DEPOSIT_CANCELLATION = 100e18;
+    uint256 internal constant MINIMUM_REDEEM               = 100e18;
+    uint256 internal constant VAULT_CAPACITY               = 100_000_000e18;
     uint256 internal constant RAY                          = 1e27;
     uint256 internal constant MAX_VSR                      = 1.000000021979553151239153027e27;  // 100% APY
 
@@ -95,8 +91,8 @@ abstract contract TestBase is Test {
     bytes32 internal TAKER_ROLE             = keccak256("TAKER_ROLE");
     bytes32 internal UNPAUSER_ROLE          = keccak256("UNPAUSER_ROLE");
 
-    IERC20Like      internal usdc   = IERC20Like(Ethereum.USDC);
-    IGroveVaultLike internal spUSDC = IGroveVaultLike(Ethereum.SPARK_VAULT_V2_SPUSDC);
+    IERC20Like      internal usds   = IERC20Like(Ethereum.USDS);
+    ISavingsLike internal sUSDS = ISavingsLike(Ethereum.SUSDS);
 
     GrovePrimeVault internal grPrime;
 
@@ -111,8 +107,8 @@ abstract contract TestBase is Test {
                 abi.encodeCall(
                     IGrovePrimeVault.initialize,
                     (
-                        address(spUSDC),
-                        "Grove Prime USDC",
+                        address(sUSDS),
+                        "Grove Prime USDS",
                         "grPrime",
                         admin,
                         MINIMUM_DEPOSIT,
@@ -176,10 +172,10 @@ abstract contract TestBase is Test {
         vm.label(address(operator),        "operator");
         vm.label(address(redeemFeeSetter), "redeemFeeSetter");
         vm.label(address(grPrime),         "grPrime");
-        vm.label(address(spUSDC),          "spUSDC");
+        vm.label(address(sUSDS),          "sUSDS");
         vm.label(address(taker),           "taker");
         vm.label(address(unpauser),        "unpauser");
-        vm.label(address(usdc),            "usdc");
+        vm.label(address(usds),            "usds");
     }
 
     function _getBlock() internal pure returns (uint256) {
@@ -216,10 +212,10 @@ abstract contract TestBase is Test {
     }
 
     function _requestDeposit(address account, address recipient, uint256 assets) internal returns (uint256 requestId) {
-        deal(address(usdc), account, assets);
+        deal(address(usds), account, assets);
 
         vm.startPrank(account);
-        usdc.approve(address(grPrime), assets);
+        usds.approve(address(grPrime), assets);
         requestId = grPrime.requestDeposit(assets, recipient, 0);
         vm.stopPrank();
     }
@@ -340,7 +336,7 @@ abstract contract TestBase is Test {
         // Deposit Requests
 
         assertApproxEqAbs(
-            spUSDC.convertToAssets(grPrime.pendingDepositSavingsShares()),
+            sUSDS.convertToAssets(grPrime.pendingDepositSavingsShares()),
             vaultState.depositRequests.pendingShareValue,
             tolerance,
             "vaultState.depositRequests.pendingShareValue"
@@ -361,7 +357,7 @@ abstract contract TestBase is Test {
         // Deposit Cancellation Requests
 
         assertApproxEqAbs(
-            spUSDC.convertToAssets(grPrime.pendingCancelledDepositSavingsShares()),
+            sUSDS.convertToAssets(grPrime.pendingCancelledDepositSavingsShares()),
             vaultState.depositCancellationRequests.pendingShareValue,
             tolerance,
             "vaultState.depositCancellationRequests.pendingShareValue"
@@ -408,7 +404,7 @@ abstract contract TestBase is Test {
 
     function _assertAccountBalances(AccountBalances memory accountState, uint256 tolerance) internal view {
         assertApproxEqAbs(
-            usdc.balanceOf(accountState.account),
+            usds.balanceOf(accountState.account),
             accountState.assets,
             tolerance,
             "accountState.assets"
@@ -422,7 +418,7 @@ abstract contract TestBase is Test {
         );
 
         assertApproxEqAbs(
-            spUSDC.assetsOf(accountState.account),
+            sUSDS.convertToAssets(sUSDS.balanceOf(accountState.account)),
             accountState.savingsShareValue,
             tolerance,
             "accountState.savingsShareValue"
@@ -465,7 +461,7 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            spUSDC.convertToAssets(shares_),
+            sUSDS.convertToAssets(shares_),
             savingsShareValue,
             "depositRequest.savingsShareValue"
         );
@@ -508,7 +504,7 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            spUSDC.convertToAssets(request.shares),
+            sUSDS.convertToAssets(request.shares),
             savingsShareValue,
             "depositRequest.savingsShareValue"
         );
@@ -558,7 +554,7 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            spUSDC.convertToAssets(shares_),
+            sUSDS.convertToAssets(shares_),
             savingsShareValue,
             "depositCancellationRequest.savingsShareValue"
         );
@@ -605,7 +601,7 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            spUSDC.convertToAssets(request.shares),
+            sUSDS.convertToAssets(request.shares),
             savingsShareValue,
             "depositCancellationRequest.savingsShareValue"
         );

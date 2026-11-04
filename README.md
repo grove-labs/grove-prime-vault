@@ -1,6 +1,6 @@
 # Grove Prime Vault (`grPrime`)
 
-An upgradeable (UUPS), yield-accruing vault token denominated in an underlying asset (e.g., USDC) that holds its liquidity in an ERC-4626 savings sleeve (e.g., `spUSDC`), featuring asynchronous FIFO queues for deposits, deposit cancellations, and redemptions in capacity- and liquidity-constrained environments.
+An upgradeable (UUPS), yield-accruing vault token denominated in an underlying asset (USDS) that holds its liquidity in an ERC-4626 savings sleeve (`sUSDS`), featuring asynchronous FIFO queues for deposits, deposit cancellations, and redemptions in capacity- and liquidity-constrained environments.
 
 `totalAssets()` (`totalSupply * chi`) is the value owed to share holders at the administered rate, not the assets held by the vault. The vault's savings share balance also backs pending deposits and cancellations, and `TAKER_ROLE` can move it out for external allocation, so it does not track `totalAssets()`.
 
@@ -23,7 +23,7 @@ The vault token is a standard ERC-20 (with EIP-2612-style `permit`, supporting b
 
 Deposits are two-step: the user's assets go to the savings sleeve immediately, and vault shares are minted once there is capacity.
 
-- **Request**: `requestDeposit(assets, recipient, referral)` pulls `assets` from the caller, deposits them into the savings vault (`spUSDC`) and queues a request denominated in **savings shares**. Requires `assets >= minDeposit` and that `recipient` is neither the zero address nor the vault. Emits `Referral` (with the integrator's `referral` code) and `DepositRequest`.
+- **Request**: `requestDeposit(assets, recipient, referral)` pulls `assets` from the caller, deposits them into the savings vault (`sUSDS`) and queues a request denominated in **savings shares**. Requires `assets >= minDeposit` and that `recipient` is neither the zero address nor the vault. Emits `Referral` (with the integrator's `referral` code) and `DepositRequest`.
 - **Instant Fill**: If the new request is the only pending deposit (nothing queued ahead of it) and capacity is available, it is processed within the same transaction.
 - **Queueing**: Otherwise the request waits in the FIFO `_depositRequests` queue. Queued depositors keep earning savings yield while waiting, since the vault holds their savings shares.
 - **Capacity**: Fills are bounded by `availableCapacity() = maxCapacity - totalSupply` (floored at 0), converted to savings shares.
@@ -56,7 +56,7 @@ Redemptions are always asynchronous (there is no instant fill).
 
 ### 6. Liquidity
 
-- **`take(savingsShares)`**: The `TAKER_ROLE` can transfer any **savings shares** (e.g., `spUSDC`) held by the vault, including those backing pending deposits and cancellations, to itself for external allocation. Reverts if the amount exceeds the vault's balance. Emits `Take`.
+- **`take(savingsShares)`**: The `TAKER_ROLE` can transfer any **savings shares** (`sUSDS`) held by the vault, including those backing pending deposits and cancellations, to itself for external allocation. Reverts if the amount exceeds the vault's balance. Emits `Take`.
 
 ### 7. Queue Mechanics
 
@@ -74,9 +74,10 @@ Redemptions are always asynchronous (there is no instant fill).
 
 ### 9. Savings Vault Assumptions
 
-The vault is designed for Grove Vault V2 savings vaults (e.g., `spUSDC`) and relies on the following:
+The vault is designed for Sky's `sUSDS` savings vault, with USDS as the underlying asset, and relies on the following:
 
-- **Deposits from the vault are accepted**: `requestDeposit` deposits into the savings vault with the vault as caller and receiver. It reverts if the vault holds the savings vault's `TAKER_ROLE` (Grove Vault V2 rejects deposits from takers) or if the deposit would exceed the savings vault's deposit cap.
+- **Deposits from the vault are accepted**: `requestDeposit` deposits into the savings vault with the vault as caller and receiver. `sUSDS` has no deposit cap and no depositor restrictions.
+- **Liquidity is set by the vault's own balance**: `sUSDS` lets any holder withdraw its full balance at any time, so `maxWithdraw`/`maxRedeem` for the vault equal the value of the `sUSDS` it holds. Liquidity for redemptions is reduced only by savings shares moved out through `take`.
 - **No fees**: `convertToShares`/`convertToAssets` are used for pricing, so deposits, redemptions, and withdrawals must not charge fees.
 - **Share price never falls**: savings shares are worth at least as many assets over time.
 - **`maxRedeem`/`maxWithdraw` are honoured**: amounts within these bounds can be redeemed or withdrawn in the same transaction.
@@ -119,7 +120,7 @@ The vault is designed for Grove Vault V2 savings vaults (e.g., `spUSDC`) and rel
 
 ---
 
-## THIS VAULT IS INTENDED TO BE USED WITH `grove-vaults-v2@v1.0.1` AS THE `savings` VAULT. ANY OTHER `savings` IMPLEMENTATION SHOULD BE REVIEWED FROM FIRST PRINCIPLES.
+## THIS VAULT IS INTENDED TO BE USED WITH `sUSDS` (`0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD` on Ethereum mainnet) AS THE `savings` VAULT. ANY OTHER `savings` IMPLEMENTATION SHOULD BE REVIEWED FROM FIRST PRINCIPLES.
 
 ### If another vault is used, it must AT LEAST adhere to these standards:
 

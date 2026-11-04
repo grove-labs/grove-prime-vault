@@ -106,13 +106,13 @@ contract RoleBasedTests is TestBase {
     function test_adjustTotalAssets_notLossManager() external {
         vm.expectRevert(_notAuthorized(user, LOSS_MANAGER_ROLE));
         vm.prank(user);
-        grPrime.adjustTotalAssets(-1e6);
+        grPrime.adjustTotalAssets(-1e18);
     }
 
     function test_adjustTotalAssets_isNotPaused() external {
         vm.expectRevert(IGrovePrimeVault.IsNotPaused.selector);
         vm.prank(lossManager);
-        grPrime.adjustTotalAssets(-1e6);
+        grPrime.adjustTotalAssets(-1e18);
     }
 
     function test_adjustTotalAssets_zeroDeltaTotalAssets() external {
@@ -124,17 +124,17 @@ contract RoleBasedTests is TestBase {
     }
 
     function test_adjustTotalAssets_lossTooHighBoundary() external {
-        _requestDeposit(user, 1_000_000e6);
+        _requestDeposit(user, 1_000_000e18);
         _pause();
 
-        assertEq(grPrime.totalAssets(), 1_000_000e6 - 1);  // Rounding
+        assertEq(grPrime.totalAssets(), 1_000_000e18 - 1);  // Rounding
 
         vm.expectRevert(IGrovePrimeVault.LossTooHigh.selector);
         vm.prank(lossManager);
-        grPrime.adjustTotalAssets(-(1_000_000e6 - 1));
+        grPrime.adjustTotalAssets(-(1_000_000e18 - 1));
 
         vm.prank(lossManager);
-        grPrime.adjustTotalAssets(-(1_000_000e6 - 2));
+        grPrime.adjustTotalAssets(-(1_000_000e18 - 2));
     }
 
     function test_adjustTotalAssets_zeroSupply() external {
@@ -142,7 +142,7 @@ contract RoleBasedTests is TestBase {
 
         vm.expectRevert(stdError.divisionError);
         vm.prank(lossManager);
-        grPrime.adjustTotalAssets(1e6);
+        grPrime.adjustTotalAssets(1e18);
     }
 
     function test_adjustTotalAssets_chiTooLowBoundary() external {
@@ -197,9 +197,9 @@ contract RoleBasedTests is TestBase {
     }
 
     function test_adjustTotalAssets_loss() external {
-        uint256 loss = 100_000e6;
+        uint256 loss = 100_000e18;
 
-        _requestDeposit(user, 1_000_000e6);
+        _requestDeposit(user, 1_000_000e18);
         _pause();
 
         skip(365 days);
@@ -210,15 +210,15 @@ contract RoleBasedTests is TestBase {
 
         // Drip is pending, adjustTotalAssets must settle it before writing chi down.
         assertEq(chiBefore,    1.049999999999999999961070145e27);  // ~5% APY
-        assertEq(supply,       1_000_000e6 - 1);  // Rounding
-        assertEq(assetsBefore, 1_050_000e6 - 2);  // Rounding, 5% yield accrued
+        assertEq(supply,       1_000_000e18 - 1);  // Rounding
+        assertEq(assetsBefore, 1_050_000e18 - 38_931);  // Rounding, ~5% yield accrued
 
         assertEq(grPrime.rho(),          vm.getBlockTimestamp() - 365 days);
         assertEq(grPrime.assetsOf(user), assetsBefore);
 
         uint192 expectedChi = uint192(((assetsBefore - loss) * RAY) / supply);
 
-        assertEq(expectedChi, 0.949999999998949999999998949e27);
+        assertEq(expectedChi, 0.949999999999999999961069949e27);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.TotalAssetsAdjusted(lossManager, expectedChi, -int256(loss));
@@ -228,16 +228,16 @@ contract RoleBasedTests is TestBase {
 
         assertEq(grPrime.chi(),          expectedChi);
         assertEq(grPrime.rho(),          vm.getBlockTimestamp());
-        assertEq(grPrime.totalAssets(),  950_000e6 - 3);  // Rounding, 100k loss incurred
-        assertEq(grPrime.assetsOf(user), 950_000e6 - 3);  // Rounding, 100k loss incurred
+        assertEq(grPrime.totalAssets(),  950_000e18 - 38_932);  // Rounding, 100k loss incurred
+        assertEq(grPrime.assetsOf(user), 950_000e18 - 38_932);  // Rounding, 100k loss incurred
 
         assertEq(grPrime.totalAssets(), assetsBefore - loss - 1);  // Rounding
     }
 
     function test_adjustTotalAssets_gain() external {
-        uint256 gain = 100_000e6;
+        uint256 gain = 100_000e18;
 
-        _requestDeposit(user, 1_000_000e6);
+        _requestDeposit(user, 1_000_000e18);
         _pause();
 
         skip(365 days);
@@ -248,15 +248,15 @@ contract RoleBasedTests is TestBase {
 
         // Drip is pending, adjustTotalAssets must settle it before writing chi up.
         assertEq(chiBefore,    1.049999999999999999961070145e27);  // ~5% APY
-        assertEq(supply,       1_000_000e6 - 1);  // Rounding
-        assertEq(assetsBefore, 1_050_000e6 - 2);  // Rounding, 5% yield accrued
+        assertEq(supply,       1_000_000e18 - 1);  // Rounding
+        assertEq(assetsBefore, 1_050_000e18 - 38_931);  // Rounding, ~5% yield accrued
 
         assertEq(grPrime.rho(),          vm.getBlockTimestamp() - 365 days);
         assertEq(grPrime.assetsOf(user), assetsBefore);
 
         uint192 expectedChi = uint192(((assetsBefore + gain) * RAY) / supply);
 
-        assertEq(expectedChi, 1.149999999999149999999999149e27);
+        assertEq(expectedChi, 1.149999999999999999961070149e27);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.TotalAssetsAdjusted(lossManager, expectedChi, int256(gain));
@@ -266,16 +266,16 @@ contract RoleBasedTests is TestBase {
 
         assertEq(grPrime.chi(),          expectedChi);
         assertEq(grPrime.rho(),          vm.getBlockTimestamp());
-        assertEq(grPrime.totalAssets(),  1_150_000e6 - 3);  // Rounding, 100k gain realized
-        assertEq(grPrime.assetsOf(user), 1_150_000e6 - 3);  // Rounding, 100k gain realized
+        assertEq(grPrime.totalAssets(),  1_150_000e18 - 38_932);  // Rounding, 100k gain realized
+        assertEq(grPrime.assetsOf(user), 1_150_000e18 - 38_932);  // Rounding, 100k gain realized
 
         assertEq(grPrime.totalAssets(), assetsBefore + gain - 1);  // Rounding
     }
 
     function test_adjustTotalAssets_accrualContinuesFromNewChi() external {
-        uint256 loss = 100_000e6;
+        uint256 loss = 100_000e18;
 
-        _requestDeposit(user, 1_000_000e6);
+        _requestDeposit(user, 1_000_000e18);
         _pause();
 
         uint192 chiBefore    = grPrime.nowChi();
@@ -284,15 +284,15 @@ contract RoleBasedTests is TestBase {
 
         // No time has passed, nothing to drip.
         assertEq(chiBefore,    1e27);
-        assertEq(supply,       1_000_000e6 - 1);  // Rounding
-        assertEq(assetsBefore, 1_000_000e6 - 1);  // Rounding
+        assertEq(supply,       1_000_000e18 - 1);  // Rounding
+        assertEq(assetsBefore, 1_000_000e18 - 1);  // Rounding
 
         assertEq(grPrime.rho(),          vm.getBlockTimestamp());
         assertEq(grPrime.assetsOf(user), assetsBefore);
 
         uint192 expectedChi = uint192(((assetsBefore - loss) * RAY) / supply);
 
-        assertEq(expectedChi, 0.899999999999899999999999899e27);
+        assertEq(expectedChi, 0.899999999999999999999999899e27);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.TotalAssetsAdjusted(lossManager, expectedChi, -int256(loss));
@@ -302,26 +302,26 @@ contract RoleBasedTests is TestBase {
 
         assertEq(grPrime.chi(),          expectedChi);
         assertEq(grPrime.rho(),          vm.getBlockTimestamp());
-        assertEq(grPrime.totalAssets(),  900_000e6 - 2);  // Rounding, 100k loss incurred
-        assertEq(grPrime.assetsOf(user), 900_000e6 - 2);  // Rounding, 100k loss incurred
+        assertEq(grPrime.totalAssets(),  900_000e18 - 2);  // Rounding, 100k loss incurred
+        assertEq(grPrime.assetsOf(user), 900_000e18 - 2);  // Rounding, 100k loss incurred
 
         skip(365 days);
 
         grPrime.drip();
 
         // 5% APY over one year, compounding on the new chi
-        assertEq(grPrime.chi(),          0.944999999999894999964963024e27);
+        assertEq(grPrime.chi(),          0.944999999999999999964963024e27);
         assertEq(grPrime.rho(),          vm.getBlockTimestamp());
-        assertEq(grPrime.totalAssets(),  945_000e6 - 2);  // Rounding, 5% yield on 900k
-        assertEq(grPrime.assetsOf(user), 945_000e6 - 2);  // Rounding, 5% yield on 900k
+        assertEq(grPrime.totalAssets(),  945_000e18 - 35_038);  // Rounding, 5% yield on 900k
+        assertEq(grPrime.assetsOf(user), 945_000e18 - 35_038);  // Rounding, 5% yield on 900k
 
         assertEq(grPrime.chi(), 1.049999999999999999961070145e27 * expectedChi / RAY);
     }
 
     function test_adjustTotalAssets_redeemReflectsLoss() external {
-        uint256 loss = 100_000e6;
+        uint256 loss = 100_000e18;
 
-        _requestDeposit(user, 1_000_000e6);
+        _requestDeposit(user, 1_000_000e18);
         _pause();
 
         uint192 chiBefore    = grPrime.nowChi();
@@ -330,15 +330,15 @@ contract RoleBasedTests is TestBase {
 
         // No time has passed, nothing to drip.
         assertEq(chiBefore,    1e27);
-        assertEq(supply,       1_000_000e6 - 1);  // Rounding
-        assertEq(assetsBefore, 1_000_000e6 - 1);  // Rounding
+        assertEq(supply,       1_000_000e18 - 1);  // Rounding
+        assertEq(assetsBefore, 1_000_000e18 - 1);  // Rounding
 
         assertEq(grPrime.rho(),          vm.getBlockTimestamp());
         assertEq(grPrime.assetsOf(user), assetsBefore);
 
         uint192 expectedChi = uint192(((assetsBefore - loss) * RAY) / supply);
 
-        assertEq(expectedChi, 0.899999999999899999999999899e27);
+        assertEq(expectedChi, 0.899999999999999999999999899e27);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.TotalAssetsAdjusted(lossManager, expectedChi, -int256(loss));
@@ -348,20 +348,20 @@ contract RoleBasedTests is TestBase {
 
         assertEq(grPrime.chi(),          expectedChi);
         assertEq(grPrime.rho(),          vm.getBlockTimestamp());
-        assertEq(grPrime.totalAssets(),  900_000e6 - 2);  // Rounding, 100k loss incurred
-        assertEq(grPrime.assetsOf(user), 900_000e6 - 2);  // Rounding, 100k loss incurred
+        assertEq(grPrime.totalAssets(),  900_000e18 - 2);  // Rounding, 100k loss incurred
+        assertEq(grPrime.assetsOf(user), 900_000e18 - 2);  // Rounding, 100k loss incurred
 
         _unpause();
 
         assertEq(grPrime.balanceOf(user),       supply);
         assertEq(grPrime.pendingRedeemShares(), 0);
-        assertEq(usdc.balanceOf(user),          0);
+        assertEq(usds.balanceOf(user),          0);
 
         _requestRedeem(user, supply);
 
         assertEq(grPrime.balanceOf(user),       0);
         assertEq(grPrime.pendingRedeemShares(), supply);
-        assertEq(usdc.balanceOf(user),          0);
+        assertEq(usds.balanceOf(user),          0);
 
         _processPendingRedeems();
 
@@ -370,7 +370,7 @@ contract RoleBasedTests is TestBase {
         assertEq(grPrime.pendingRedeemShares(), 0);
         assertEq(grPrime.totalSupply(),         0);
         assertEq(grPrime.totalAssets(),         0);
-        assertEq(usdc.balanceOf(user),          900_000e6 - 2);  // Rounding, 100k loss incurred
+        assertEq(usds.balanceOf(user),          900_000e18 - 2);  // Rounding, 100k loss incurred
     }
 
     /**********************************************************************************************/
@@ -380,21 +380,21 @@ contract RoleBasedTests is TestBase {
     function test_setCapacity_notOperator() external {
         vm.expectRevert(_notAuthorized(unauthorized, OPERATOR_ROLE));
         vm.prank(unauthorized);
-        grPrime.setCapacity(2_000_000e6);
+        grPrime.setCapacity(2_000_000e18);
     }
 
     function test_setCapacity() external {
-        assertEq(grPrime.maxCapacity(),       100_000_000e6);
-        assertEq(grPrime.availableCapacity(), 100_000_000e6);
+        assertEq(grPrime.maxCapacity(),       100_000_000e18);
+        assertEq(grPrime.availableCapacity(), 100_000_000e18);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.CapacitySet(operator, 2_000_000e6);
+        emit IGrovePrimeVault.CapacitySet(operator, 2_000_000e18);
 
         vm.prank(operator);
-        grPrime.setCapacity(2_000_000e6);
+        grPrime.setCapacity(2_000_000e18);
 
-        assertEq(grPrime.maxCapacity(),       2_000_000e6);
-        assertEq(grPrime.availableCapacity(), 2_000_000e6);
+        assertEq(grPrime.maxCapacity(),       2_000_000e18);
+        assertEq(grPrime.availableCapacity(), 2_000_000e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.CapacitySet(operator, type(uint256).max);
@@ -461,7 +461,7 @@ contract RoleBasedTests is TestBase {
     function test_setMinDeposit_notAdmin() external {
         vm.expectRevert(_notAuthorized(unauthorized, DEFAULT_ADMIN_ROLE));
         vm.prank(unauthorized);
-        grPrime.setMinDeposit(100e6);
+        grPrime.setMinDeposit(100e18);
     }
 
     function test_setMinDeposit_zeroMinDeposit() external {
@@ -474,12 +474,12 @@ contract RoleBasedTests is TestBase {
         assertEq(grPrime.minDeposit(), MINIMUM_DEPOSIT);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.MinDepositSet(admin, 100e6);
+        emit IGrovePrimeVault.MinDepositSet(admin, 100e18);
 
         vm.prank(admin);
-        grPrime.setMinDeposit(100e6);
+        grPrime.setMinDeposit(100e18);
 
-        assertEq(grPrime.minDeposit(), 100e6);
+        assertEq(grPrime.minDeposit(), 100e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.MinDepositSet(admin, 1);
@@ -497,7 +497,7 @@ contract RoleBasedTests is TestBase {
     function test_setMinDepositCancellation_notAdmin() external {
         vm.expectRevert(_notAuthorized(unauthorized, DEFAULT_ADMIN_ROLE));
         vm.prank(unauthorized);
-        grPrime.setMinDepositCancellation(100e6);
+        grPrime.setMinDepositCancellation(100e18);
     }
 
     function test_setMinDepositCancellation_zeroMinDepositCancellation() external {
@@ -510,12 +510,12 @@ contract RoleBasedTests is TestBase {
         assertEq(grPrime.minDepositCancellation(), MINIMUM_DEPOSIT_CANCELLATION);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.MinDepositCancellationSet(admin, 200e6);
+        emit IGrovePrimeVault.MinDepositCancellationSet(admin, 200e18);
 
         vm.prank(admin);
-        grPrime.setMinDepositCancellation(200e6);
+        grPrime.setMinDepositCancellation(200e18);
 
-        assertEq(grPrime.minDepositCancellation(), 200e6);
+        assertEq(grPrime.minDepositCancellation(), 200e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.MinDepositCancellationSet(admin, 1);
@@ -533,7 +533,7 @@ contract RoleBasedTests is TestBase {
     function test_setMinRedeem_notAdmin() external {
         vm.expectRevert(_notAuthorized(unauthorized, DEFAULT_ADMIN_ROLE));
         vm.prank(unauthorized);
-        grPrime.setMinRedeem(100e6);
+        grPrime.setMinRedeem(100e18);
     }
 
     function test_setMinRedeem_zeroMinRedeem() external {
@@ -546,12 +546,12 @@ contract RoleBasedTests is TestBase {
         assertEq(grPrime.minRedeem(), MINIMUM_REDEEM);
 
         vm.expectEmit(address(grPrime));
-        emit IGrovePrimeVault.MinRedeemSet(admin, 100e6);
+        emit IGrovePrimeVault.MinRedeemSet(admin, 100e18);
 
         vm.prank(admin);
-        grPrime.setMinRedeem(100e6);
+        grPrime.setMinRedeem(100e18);
 
-        assertEq(grPrime.minRedeem(), 100e6);
+        assertEq(grPrime.minRedeem(), 100e18);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.MinRedeemSet(admin, 1);
@@ -709,13 +709,13 @@ contract RoleBasedTests is TestBase {
     function test_take_notAuthorized() external {
         vm.expectRevert(_notAuthorized(unauthorized, TAKER_ROLE));
         vm.prank(unauthorized);
-        grPrime.take(1_000_000e6);
+        grPrime.take(1_000_000e18);
     }
 
     function test_take_insufficientSharesBoundary() external {
-        _requestDeposit(user, 1_000_000e6);  // Instant fill
+        _requestDeposit(user, 1_000_000e18);  // Instant fill
 
-        uint256 vaultBalance = spUSDC.balanceOf(address(grPrime));
+        uint256 vaultBalance = sUSDS.balanceOf(address(grPrime));
 
         vm.expectRevert(IGrovePrimeVault.InsufficientShares.selector);
         vm.prank(taker);
@@ -726,12 +726,12 @@ contract RoleBasedTests is TestBase {
     }
 
     function test_take() external {
-        uint256 expectedSavingsShares = spUSDC.convertToShares(1_000_000e6);
+        uint256 expectedSavingsShares = sUSDS.convertToShares(1_000_000e18);
 
-        _requestDeposit(user, 1_000_000e6);  // Instant fill
+        _requestDeposit(user, 1_000_000e18);  // Instant fill
 
-        assertEq(spUSDC.balanceOf(address(grPrime)), expectedSavingsShares);
-        assertEq(spUSDC.balanceOf(taker),            0);
+        assertEq(sUSDS.balanceOf(address(grPrime)), expectedSavingsShares);
+        assertEq(sUSDS.balanceOf(taker),            0);
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.Take(taker, expectedSavingsShares);
@@ -739,8 +739,8 @@ contract RoleBasedTests is TestBase {
         vm.prank(taker);
         grPrime.take(expectedSavingsShares);
 
-        assertEq(spUSDC.balanceOf(address(grPrime)), 0);
-        assertEq(spUSDC.balanceOf(taker),            expectedSavingsShares);
+        assertEq(sUSDS.balanceOf(address(grPrime)), 0);
+        assertEq(sUSDS.balanceOf(taker),            expectedSavingsShares);
     }
 
     /**********************************************************************************************/

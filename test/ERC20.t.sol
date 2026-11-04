@@ -28,7 +28,7 @@ contract ERC20Tests is TokenFuzzChecks {
                 address(new GrovePrimeVault()),
                 abi.encodeCall(
                     IGrovePrimeVault.initialize,
-                    (Ethereum.SPARK_VAULT_V2_SPUSDC, "Grove Prime USDC", "grPrime", admin, 1, 1, 1)
+                    (Ethereum.SUSDS, "Grove Prime USDS", "grPrime", admin, 1, 1, 1)
                 )
             ))
         );
@@ -44,7 +44,7 @@ contract ERC20Tests is TokenFuzzChecks {
     }
 
     function test_erc20() external {
-        checkBulkERC20(address(grPrime), "GrovePrimeVault", "Grove Prime USDC", "grPrime", "1", 6);
+        checkBulkERC20(address(grPrime), "GrovePrimeVault", "Grove Prime USDS", "grPrime", "1", 18);
     }
 
     function testFuzz_erc20(uint256 amount1, uint256 amount2, uint256 vsr, uint256 warpTime) external {
