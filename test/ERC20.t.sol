@@ -28,7 +28,7 @@ contract ERC20Tests is TokenFuzzChecks {
                 address(new GrovePrimeVault()),
                 abi.encodeCall(
                     IGrovePrimeVault.initialize,
-                    (Ethereum.SUSDS, "Grove Prime USDS", "grPrime", admin, 1, 1, 1)
+                    (Ethereum.SUSDS, "Grove Prime USDS", "grPrime", admin, 1, 1, 1, false)
                 )
             ))
         );

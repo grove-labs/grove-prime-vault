@@ -91,6 +91,7 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
 
     uint256 public constant override MAX_REDEEM_FEE = 0.01e18;  // 1% [wad]
 
+    bytes32 public constant override ALLOWLIST_MANAGER_ROLE = keccak256("ALLOWLIST_MANAGER_ROLE");
     bytes32 public constant override LOSS_MANAGER_ROLE      = keccak256("LOSS_MANAGER_ROLE");
     bytes32 public constant override OPERATOR_ROLE          = keccak256("OPERATOR_ROLE");
     bytes32 public constant override PAUSER_ROLE            = keccak256("PAUSER_ROLE");
@@ -155,6 +156,10 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     mapping (address account => mapping (address spender => uint256 amount))
         public override allowance;
 
+    bool public override allowlistEnabled;
+
+    mapping (address account => bool allowlisted) public override isAllowlisted;
+
     modifier whenNotPaused() {
         require(!paused, IsPaused());
         _;
@@ -177,7 +182,8 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         address        admin,
         uint256        minDeposit_,
         uint256        minDepositCancellation_,
-        uint256        minRedeem_
+        uint256        minRedeem_,
+        bool           allowlistEnabled_
     )
         initializer external override
     {
@@ -200,6 +206,8 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         _setMinDeposit(minDeposit_);
         _setMinDepositCancellation(minDepositCancellation_);
         _setMinRedeem(minRedeem_);
+
+        emit AllowlistEnabledSet(address(this), allowlistEnabled = allowlistEnabled_);
 
         SafeERC20.forceApprove(IERC20OZ(asset_), savings_, type(uint256).max);
     }
@@ -242,6 +250,22 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         require(minVSR_ <= maxVSR_, MinVSRGtMaxVSR());
 
         emit VSRBoundsSet(msg.sender, minVSR = minVSR_, maxVSR = maxVSR_);
+    }
+
+    /**********************************************************************************************/
+    /*** Allowlist Manager external functions                                                   ***/
+    /**********************************************************************************************/
+
+    function setAllowlistEnabled(bool enabled_) external override onlyRole(ALLOWLIST_MANAGER_ROLE) {
+        emit AllowlistEnabledSet(msg.sender, allowlistEnabled = enabled_);
+    }
+
+    function setAllowlisted(address account_, bool allowlisted_)
+        external
+        override
+        onlyRole(ALLOWLIST_MANAGER_ROLE)
+    {
+        emit AllowlistUpdated(msg.sender, account_, isAllowlisted[account_] = allowlisted_);
     }
 
     /**********************************************************************************************/
@@ -369,9 +393,10 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         whenNotPaused
         returns (uint256 requestId_)
     {
-        require(recipient_ != address(0),    ZeroRecipient());
-        require(recipient_ != address(this), VaultIsRecipient());
-        require(assets_ >= minDeposit,       BelowMinDeposit());
+        require(recipient_ != address(0),      ZeroRecipient());
+        require(recipient_ != address(this),   VaultIsRecipient());
+        require(_canReceiveShares(recipient_), RecipientNotAllowlisted());
+        require(assets_ >= minDeposit,         BelowMinDeposit());
 
         drip();
 
@@ -478,6 +503,7 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     function updateDepositRecipient(uint256 requestId_, address recipient_) external override {
         require(recipient_ != address(0),             ZeroRecipient());
         require(recipient_ != address(this),          VaultIsRecipient());
+        require(_canReceiveShares(recipient_),        RecipientNotAllowlisted());
         require(requestId_ < _depositRequests.length, InvalidRequestId());
 
         Request storage request_ = _depositRequests[requestId_];
@@ -876,6 +902,12 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     /**********************************************************************************************/
     /*** Config internal helper functions                                                       ***/
     /**********************************************************************************************/
+
+    // Enforced only when a deposit recipient is set, so a recipient removed from the allowlist
+    // cannot block the FIFO deposit queue once its request is queued.
+    function _canReceiveShares(address recipient_) internal view returns (bool) {
+        return !allowlistEnabled || isAllowlisted[recipient_];
+    }
 
     function _setMinDeposit(uint256 minDeposit_) internal {
         require(minDeposit_ != 0, ZeroMinDeposit());

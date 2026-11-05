@@ -23,12 +23,13 @@ The vault token is a standard ERC-20 (with EIP-2612-style `permit`, supporting b
 
 Deposits are two-step: the user's assets go to the savings sleeve immediately, and vault shares are minted once there is capacity.
 
-- **Request**: `requestDeposit(assets, recipient, referral)` pulls `assets` from the caller, deposits them into the savings vault (`sUSDS`) and queues a request denominated in **savings shares**. Requires `assets >= minDeposit` and that `recipient` is neither the zero address nor the vault. Emits `Referral` (with the integrator's `referral` code) and `DepositRequest`.
+- **Request**: `requestDeposit(assets, recipient, referral)` pulls `assets` from the caller, deposits them into the savings vault (`sUSDS`) and queues a request denominated in **savings shares**. Requires `assets >= minDeposit`, that `recipient` is neither the zero address nor the vault, and, while the allowlist is enabled, that `recipient` is allowlisted. Emits `Referral` (with the integrator's `referral` code) and `DepositRequest`.
 - **Instant Fill**: If the new request is the only pending deposit (nothing queued ahead of it) and capacity is available, it is processed within the same transaction.
 - **Queueing**: Otherwise the request waits in the FIFO `_depositRequests` queue. Queued depositors keep earning savings yield while waiting, since the vault holds their savings shares.
 - **Capacity**: Fills are bounded by `availableCapacity() = maxCapacity - totalSupply` (floored at 0), converted to savings shares.
 - **Processing**: `OPERATOR_ROLE` calls `processPendingDeposits(maxSavingsShares, maxRequests)`. Savings shares are converted to assets and then minted as `grPrime` to each request's `recipient` at the current `chi`. Requests can be **partially filled**; a partially filled request stays at the head of the queue.
-- **Updating the recipient**: The request `owner` can call `updateDepositRecipient(requestId, recipient)` to change who receives the minted shares.
+- **Updating the recipient**: The request `owner` can call `updateDepositRecipient(requestId, recipient)` to change who receives the minted shares. The new recipient must be allowlisted while the allowlist is enabled.
+- **Allowlist**: When `allowlistEnabled` is true, only allowlisted addresses (`isAllowlisted`) can be deposit recipients. Only the recipient is checked, not the depositor. The check runs when a request is made or its recipient is updated, not when it is processed, so requests already in the queue still mint after their recipient is removed from the allowlist or the allowlist is turned on. `ALLOWLIST_MANAGER_ROLE` manages the list and the toggle; the initial state is set by the `allowlistEnabled` `initialize` parameter. The allowlist does not restrict ERC-20 transfers, redemptions, or cancellations.
 
 ### 3. Deposit Cancellation & Cancellation Queue
 
@@ -98,6 +99,8 @@ The vault is designed for Sky's `sUSDS` savings vault, with USDS as the underlyi
 | `vsr`                    | `setVSR` (`OPERATOR_ROLE`)                         | Must be within `[minVSR, maxVSR]`; drips before updating.         |
 | `maxRedeemFeeRate`       | `setMaxRedeemFeeRate` (`DEFAULT_ADMIN_ROLE`)       | Wad; capped by the `MAX_REDEEM_FEE` constant (1%).                |
 | `redeemFeeRate`          | `setRedeemFeeRate` (`REDEEM_FEE_SETTER_ROLE`)      | Wad; must be `<= maxRedeemFeeRate`.                               |
+| `allowlistEnabled`       | `setAllowlistEnabled` (`ALLOWLIST_MANAGER_ROLE`)   | Initial value set in `initialize`. Gates deposit recipients.      |
+| `isAllowlisted`          | `setAllowlisted` (`ALLOWLIST_MANAGER_ROLE`)        | Per-account flag checked while the allowlist is enabled.          |
 
 ---
 
@@ -111,6 +114,7 @@ The vault is designed for Sky's `sUSDS` savings vault, with USDS as the underlyi
 | **`OPERATOR_ROLE`**          | `processPendingDeposits`, `processPendingDepositCancellations`, `processPendingRedeems`                                                       | Settles the deposit, deposit-cancellation, and redeem queues (deposits and redeems only while unpaused).                              |
 | **`TAKER_ROLE`**             | `take`                                                                                                                                        | Withdraws any savings shares held by the vault, including those backing pending deposits and cancellations, for portfolio allocation. |
 | **`REDEEM_FEE_SETTER_ROLE`** | `setRedeemFeeRate`                                                                                                                            | Configures the redemption fee rate (≤ `maxRedeemFeeRate`).                                                                            |
+| **`ALLOWLIST_MANAGER_ROLE`** | `setAllowlistEnabled`, `setAllowlisted`                                                                                                       | Turns the deposit-recipient allowlist on or off and adds or removes allowlisted accounts.                                             |
 | **`PAUSER_ROLE`**            | `pause`                                                                                                                                       | Emergency pause of deposit/redeem requests and their processing (deposit cancellations stay available).                               |
 | **`UNPAUSER_ROLE`**          | `unpause`                                                                                                                                     | Unpause of requests and queue processing.                                                                                             |
 | **Request owner**            | `requestDepositCancellation`, `updateDepositRecipient`, `updateDepositCancellationRecipient`, `updateRedeemRecipient`                         | Only the `owner` of a request can cancel it or change its recipient.                                                                  |

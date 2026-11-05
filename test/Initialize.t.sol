@@ -26,6 +26,18 @@ contract InitializeTests is TestBase {
         internal
         returns (IGrovePrimeVault)
     {
+        return _deploy(minDeposit, minDepositCancellation, minRedeem, true);
+    }
+
+    function _deploy(
+        uint256 minDeposit,
+        uint256 minDepositCancellation,
+        uint256 minRedeem,
+        bool    allowlistEnabled
+    )
+        internal
+        returns (IGrovePrimeVault)
+    {
         vm.prank(deployer);
 
         return GrovePrimeVault(
@@ -40,7 +52,8 @@ contract InitializeTests is TestBase {
                         admin,
                         minDeposit,
                         minDepositCancellation,
-                        minRedeem
+                        minRedeem,
+                        allowlistEnabled
                     )
                 )
             ))
@@ -68,12 +81,12 @@ contract InitializeTests is TestBase {
 
     function test_initialize_alreadyInitialized() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        grPrime.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1);
+        grPrime.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1, true);
     }
 
     function test_initialize_implementationDisabled() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        implementation.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1);
+        implementation.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1, true);
     }
 
     function test_initialize() external {
@@ -97,6 +110,9 @@ contract InitializeTests is TestBase {
         vm.expectEmit(expectedProxy);
         emit IGrovePrimeVault.MinRedeemSet(deployer, MINIMUM_REDEEM);
 
+        vm.expectEmit(expectedProxy);
+        emit IGrovePrimeVault.AllowlistEnabledSet(expectedProxy, true);
+
         IGrovePrimeVault vault = _deploy(MINIMUM_DEPOSIT, MINIMUM_DEPOSIT_CANCELLATION, MINIMUM_REDEEM);
 
         assertEq(address(vault), expectedProxy);
@@ -119,7 +135,20 @@ contract InitializeTests is TestBase {
         assertEq(vault.minDepositCancellation(), MINIMUM_DEPOSIT_CANCELLATION);
         assertEq(vault.minRedeem(),              MINIMUM_REDEEM);
 
+        assertEq(vault.allowlistEnabled(), true);
+
         assertEq(usds.allowance(address(vault), address(sUSDS)), type(uint256).max);
+    }
+
+    function test_initialize_allowlistDisabled() external {
+        address expectedProxy = vm.computeCreateAddress(deployer, vm.getNonce(deployer));
+
+        vm.expectEmit(expectedProxy);
+        emit IGrovePrimeVault.AllowlistEnabledSet(expectedProxy, false);
+
+        IGrovePrimeVault vault = _deploy(MINIMUM_DEPOSIT, MINIMUM_DEPOSIT_CANCELLATION, MINIMUM_REDEEM, false);
+
+        assertEq(vault.allowlistEnabled(), false);
     }
 
 }
