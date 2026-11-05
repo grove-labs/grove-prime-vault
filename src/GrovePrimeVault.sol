@@ -393,10 +393,10 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         whenNotPaused
         returns (uint256 requestId_)
     {
-        require(recipient_ != address(0),      ZeroRecipient());
-        require(recipient_ != address(this),   VaultIsRecipient());
-        require(_canReceiveShares(recipient_), RecipientNotAllowlisted());
-        require(assets_ >= minDeposit,         BelowMinDeposit());
+        require(recipient_ != address(0),        ZeroRecipient());
+        require(recipient_ != address(this),     VaultIsRecipient());
+        require(_isAllowedRecipient(recipient_), RecipientNotAllowlisted());
+        require(assets_ >= minDeposit,           BelowMinDeposit());
 
         drip();
 
@@ -470,9 +470,10 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         whenNotPaused
         returns (uint256 requestId_)
     {
-        require(recipient_ != address(0),    ZeroRecipient());
-        require(recipient_ != address(this), VaultIsRecipient());
-        require(shares_ >= minRedeem,        BelowMinRedeem());
+        require(recipient_ != address(0),        ZeroRecipient());
+        require(recipient_ != address(this),     VaultIsRecipient());
+        require(_isAllowedRecipient(recipient_), RecipientNotAllowlisted());
+        require(shares_ >= minRedeem,            BelowMinRedeem());
 
         drip();
 
@@ -503,7 +504,7 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     function updateDepositRecipient(uint256 requestId_, address recipient_) external override {
         require(recipient_ != address(0),             ZeroRecipient());
         require(recipient_ != address(this),          VaultIsRecipient());
-        require(_canReceiveShares(recipient_),        RecipientNotAllowlisted());
+        require(_isAllowedRecipient(recipient_),      RecipientNotAllowlisted());
         require(requestId_ < _depositRequests.length, InvalidRequestId());
 
         Request storage request_ = _depositRequests[requestId_];
@@ -536,6 +537,7 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     function updateRedeemRecipient(uint256 requestId_, address recipient_) external override {
         require(recipient_ != address(0),            ZeroRecipient());
         require(recipient_ != address(this),         VaultIsRecipient());
+        require(_isAllowedRecipient(recipient_),     RecipientNotAllowlisted());
         require(requestId_ < _redeemRequests.length, InvalidRequestId());
 
         Request storage request_ = _redeemRequests[requestId_];
@@ -903,9 +905,9 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     /*** Config internal helper functions                                                       ***/
     /**********************************************************************************************/
 
-    // Enforced only when a deposit recipient is set, so a recipient removed from the allowlist
-    // cannot block the FIFO deposit queue once its request is queued.
-    function _canReceiveShares(address recipient_) internal view returns (bool) {
+    // Enforced only when a deposit or redeem recipient is set, so a recipient removed from the
+    // allowlist cannot block a FIFO queue once its request is queued.
+    function _isAllowedRecipient(address recipient_) internal view returns (bool) {
         return !allowlistEnabled || isAllowlisted[recipient_];
     }
 

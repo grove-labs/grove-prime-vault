@@ -236,7 +236,115 @@ contract AllowlistTests is TestBase {
     }
 
     /**********************************************************************************************/
-    /*** Non-mint paths are unaffected                                                          ***/
+    /*** requestRedeem                                                                          ***/
+    /**********************************************************************************************/
+
+    function test_requestRedeem_recipientNotAllowlisted() external {
+        _setAllowlisted(user, true);
+        _requestDeposit(user, 1_000_000e18);  // Filled instantly
+
+        uint256 shares = grPrime.balanceOf(user);
+
+        vm.expectRevert(IGrovePrimeVault.RecipientNotAllowlisted.selector);
+        vm.prank(user);
+        grPrime.requestRedeem(shares, recipient);
+    }
+
+    function test_requestRedeem_onlyRecipientIsChecked() external {
+        _setAllowlisted(user, true);
+        _requestDeposit(user, 1_000_000e18);  // Filled instantly
+
+        _setAllowlisted(user,      false);
+        _setAllowlisted(recipient, true);
+
+        _requestRedeem(user, recipient, grPrime.balanceOf(user));
+
+        _assertRedeemRequest(0, user, recipient, 1_000_000e18 - 1);
+    }
+
+    function test_requestRedeem_allowlistDisabled() external {
+        _setAllowlisted(user, true);
+        _requestDeposit(user, 1_000_000e18);  // Filled instantly
+
+        _setAllowlistEnabled(false);
+
+        _requestRedeem(user, recipient, grPrime.balanceOf(user));
+
+        _assertRedeemRequest(0, user, recipient, 1_000_000e18 - 1);
+    }
+
+    /**********************************************************************************************/
+    /*** updateRedeemRecipient                                                                  ***/
+    /**********************************************************************************************/
+
+    function test_updateRedeemRecipient_recipientNotAllowlisted() external {
+        _setAllowlisted(user, true);
+        _requestDeposit(user, 1_000_000e18);            // Filled instantly
+        _requestRedeem(user, grPrime.balanceOf(user));  // Request 0 redeem queued
+
+        vm.expectRevert(IGrovePrimeVault.RecipientNotAllowlisted.selector);
+        vm.prank(user);
+        grPrime.updateRedeemRecipient(0, recipient);
+    }
+
+    function test_updateRedeemRecipient_allowlisted() external {
+        _setAllowlisted(user,      true);
+        _setAllowlisted(recipient, true);
+        _requestDeposit(user, 1_000_000e18);            // Filled instantly
+        _requestRedeem(user, grPrime.balanceOf(user));  // Request 0 redeem queued
+
+        vm.prank(user);
+        grPrime.updateRedeemRecipient(0, recipient);
+
+        _assertRedeemRequest(0, user, recipient, 1_000_000e18 - 1);
+    }
+
+    function test_updateRedeemRecipient_allowlistDisabled() external {
+        _setAllowlisted(user, true);
+        _requestDeposit(user, 1_000_000e18);            // Filled instantly
+        _requestRedeem(user, grPrime.balanceOf(user));  // Request 0 redeem queued
+
+        _setAllowlistEnabled(false);
+
+        vm.prank(user);
+        grPrime.updateRedeemRecipient(0, recipient);
+
+        _assertRedeemRequest(0, user, recipient, 1_000_000e18 - 1);
+    }
+
+    /**********************************************************************************************/
+    /*** Queued redeem requests are not re-checked                                              ***/
+    /**********************************************************************************************/
+
+    function test_processPendingRedeems_recipientRemovedAfterRequest() external {
+        _setAllowlisted(user,      true);
+        _setAllowlisted(recipient, true);
+        _requestDeposit(user, 1_000_000e18);                       // Filled instantly
+        _requestRedeem(user, recipient, grPrime.balanceOf(user));  // Request 0 redeem queued
+
+        _setAllowlisted(recipient, false);
+
+        _processPendingRedeems();
+
+        assertEq(grPrime.pendingRedeemShares(), 0);
+        assertApproxEqAbs(usds.balanceOf(recipient), 1_000_000e18, 2);
+    }
+
+    function test_processPendingRedeems_allowlistEnabledAfterRequest() external {
+        _setAllowlistEnabled(false);
+        _requestDeposit(user, 1_000_000e18);                       // Filled instantly
+        _requestRedeem(user, recipient, grPrime.balanceOf(user));  // Request 0 redeem queued
+
+        _setAllowlistEnabled(true);
+
+        _processPendingRedeems();
+
+        assertEq(grPrime.pendingRedeemShares(), 0);
+        assertApproxEqAbs(usds.balanceOf(recipient), 1_000_000e18, 2);
+    }
+
+    /**********************************************************************************************/
+    /*** Other paths are unaffected                                                             ***/
     /**********************************************************************************************/
 
     function test_transfer_toNonAllowlisted() external {
@@ -251,13 +359,14 @@ contract AllowlistTests is TestBase {
         assertEq(grPrime.balanceOf(recipient), shares);
     }
 
-    function test_requestRedeem_toNonAllowlisted() external {
+    function test_requestDepositCancellation_toNonAllowlisted() external {
         _setAllowlisted(user, true);
-        _requestDeposit(user, 1_000_000e18);  // Filled instantly
+        _setCapacity(0);
+        _requestDeposit(user, 1_000_000e18);  // Request 0 queued
 
-        _requestRedeem(user, recipient, grPrime.balanceOf(user));
+        _requestDepositCancellation(user, 0, recipient, sUSDS.convertToShares(1_000_000e18));
 
-        assertEq(grPrime.balanceOf(user), 0);
+        _assertDepositCancellationRequest(0, user, recipient, 1_000_000e18 - 1);
     }
 
 }

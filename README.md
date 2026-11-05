@@ -29,7 +29,7 @@ Deposits are two-step: the user's assets go to the savings sleeve immediately, a
 - **Capacity**: Fills are bounded by `availableCapacity() = maxCapacity - totalSupply` (floored at 0), converted to savings shares.
 - **Processing**: `OPERATOR_ROLE` calls `processPendingDeposits(maxSavingsShares, maxRequests)`. Savings shares are converted to assets and then minted as `grPrime` to each request's `recipient` at the current `chi`. Requests can be **partially filled**; a partially filled request stays at the head of the queue.
 - **Updating the recipient**: The request `owner` can call `updateDepositRecipient(requestId, recipient)` to change who receives the minted shares. The new recipient must be allowlisted while the allowlist is enabled.
-- **Allowlist**: When `allowlistEnabled` is true, only allowlisted addresses (`isAllowlisted`) can be deposit recipients. Only the recipient is checked, not the depositor. The check runs when a request is made or its recipient is updated, not when it is processed, so requests already in the queue still mint after their recipient is removed from the allowlist or the allowlist is turned on. `ALLOWLIST_MANAGER_ROLE` manages the list and the toggle; the initial state is set by the `allowlistEnabled` `initialize` parameter. The allowlist does not restrict ERC-20 transfers, redemptions, or cancellations.
+- **Allowlist**: When `allowlistEnabled` is true, only allowlisted addresses (`isAllowlisted`) can be deposit recipients. Only the recipient is checked, not the depositor. The check runs when a request is made or its recipient is updated, not when it is processed, so requests already in the queue still mint after their recipient is removed from the allowlist or the allowlist is turned on. `ALLOWLIST_MANAGER_ROLE` manages the list and the toggle; the initial state is set by the `allowlistEnabled` `initialize` parameter. The same allowlist applies to redeem recipients (see below). It does not restrict ERC-20 transfers or deposit cancellations.
 
 ### 3. Deposit Cancellation & Cancellation Queue
 
@@ -43,11 +43,11 @@ Deposits are two-step: the user's assets go to the savings sleeve immediately, a
 
 Redemptions are always asynchronous (there is no instant fill).
 
-- **Request**: `requestRedeem(shares, recipient)` transfers `shares` from the caller into the vault, requires `shares >= minRedeem` (checked before the fee) and that `recipient` is neither the zero address nor the vault.
+- **Request**: `requestRedeem(shares, recipient)` transfers `shares` from the caller into the vault, requires `shares >= minRedeem` (checked before the fee), that `recipient` is neither the zero address nor the vault, and, while the allowlist is enabled, that `recipient` is allowlisted. As with deposits, only the recipient is checked, and requests already queued are still paid out if their recipient is later removed or the allowlist is turned on.
 - **Redeem Fee**: The fee is taken **upfront in shares**: `fee = ceil(shares * redeemFeeRate / WAD)` is burned immediately, and only `shares - fee` is queued. The rate is locked in at request time. Emits `RedeemRequest(requestId, owner, recipient, sharesToBurn, feeSharesBurned)`.
 - **Queueing**: Queued shares are escrowed in the vault (counted in `pendingRedeemShares`) and keep earning vault yield until processed.
 - **Processing**: `OPERATOR_ROLE` calls `processPendingRedeems(maxShares, maxRequests)`. Bounded by `availableLiquidAssets()` (the savings vault's `maxWithdraw` for the vault). For each fill, the escrowed shares are burned and the corresponding assets are withdrawn from the savings vault straight to the `recipient`. Partial fills are supported.
-- **Updating the recipient**: The `owner` can call `updateRedeemRecipient(requestId, recipient)`.
+- **Updating the recipient**: The `owner` can call `updateRedeemRecipient(requestId, recipient)`. The new recipient must be allowlisted while the allowlist is enabled.
 
 ### 5. Handling Failing Redemptions/Withdrawals & Claims
 
@@ -99,7 +99,7 @@ The vault is designed for Sky's `sUSDS` savings vault, with USDS as the underlyi
 | `vsr`                    | `setVSR` (`OPERATOR_ROLE`)                         | Must be within `[minVSR, maxVSR]`; drips before updating.         |
 | `maxRedeemFeeRate`       | `setMaxRedeemFeeRate` (`DEFAULT_ADMIN_ROLE`)       | Wad; capped by the `MAX_REDEEM_FEE` constant (1%).                |
 | `redeemFeeRate`          | `setRedeemFeeRate` (`REDEEM_FEE_SETTER_ROLE`)      | Wad; must be `<= maxRedeemFeeRate`.                               |
-| `allowlistEnabled`       | `setAllowlistEnabled` (`ALLOWLIST_MANAGER_ROLE`)   | Initial value set in `initialize`. Gates deposit recipients.      |
+| `allowlistEnabled`       | `setAllowlistEnabled` (`ALLOWLIST_MANAGER_ROLE`)   | Set in `initialize`. Gates deposit and redeem recipients.         |
 | `isAllowlisted`          | `setAllowlisted` (`ALLOWLIST_MANAGER_ROLE`)        | Per-account flag checked while the allowlist is enabled.          |
 
 ---
@@ -114,7 +114,7 @@ The vault is designed for Sky's `sUSDS` savings vault, with USDS as the underlyi
 | **`OPERATOR_ROLE`**          | `processPendingDeposits`, `processPendingDepositCancellations`, `processPendingRedeems`                                                       | Settles the deposit, deposit-cancellation, and redeem queues (deposits and redeems only while unpaused).                              |
 | **`TAKER_ROLE`**             | `take`                                                                                                                                        | Withdraws any savings shares held by the vault, including those backing pending deposits and cancellations, for portfolio allocation. |
 | **`REDEEM_FEE_SETTER_ROLE`** | `setRedeemFeeRate`                                                                                                                            | Configures the redemption fee rate (≤ `maxRedeemFeeRate`).                                                                            |
-| **`ALLOWLIST_MANAGER_ROLE`** | `setAllowlistEnabled`, `setAllowlisted`                                                                                                       | Turns the deposit-recipient allowlist on or off and adds or removes allowlisted accounts.                                             |
+| **`ALLOWLIST_MANAGER_ROLE`** | `setAllowlistEnabled`, `setAllowlisted`                                                                                                       | Turns the deposit/redeem-recipient allowlist on or off and adds or removes allowlisted accounts.                                      |
 | **`PAUSER_ROLE`**            | `pause`                                                                                                                                       | Emergency pause of deposit/redeem requests and their processing (deposit cancellations stay available).                               |
 | **`UNPAUSER_ROLE`**          | `unpause`                                                                                                                                     | Unpause of requests and queue processing.                                                                                             |
 | **Request owner**            | `requestDepositCancellation`, `updateDepositRecipient`, `updateDepositCancellationRecipient`, `updateRedeemRecipient`                         | Only the `owner` of a request can cancel it or change its recipient.                                                                  |

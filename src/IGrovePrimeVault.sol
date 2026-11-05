@@ -587,12 +587,12 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Returns whether the allowlist is enabled. While enabled, only allowlisted accounts
-     *         can be set as the recipient of a deposit request.
+     *         can be set as the recipient of a deposit or redeem request.
      */
     function allowlistEnabled() external view returns (bool);
 
     /**
-     * @notice Returns whether `account_` is allowlisted to receive shares from deposit requests.
+     * @notice Returns whether `account_` is allowlisted as a deposit or redeem recipient.
      * @param  account_     The address to check
      * @return allowlisted_ Whether the account is allowlisted
      */
@@ -687,8 +687,9 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**
      * @notice Turns the allowlist on or off.
      * @dev    This function can only be called by accounts with `ALLOWLIST_MANAGER_ROLE`.
-     *         The allowlist is checked when a deposit is requested and when a deposit recipient is
-     *         updated. Deposit requests already queued are filled regardless of the allowlist.
+     *         The allowlist is checked when a deposit or redeem is requested and when a deposit or
+     *         redeem recipient is updated. Requests already queued are filled regardless of the
+     *         allowlist.
      * @param  enabled_ Whether the allowlist is enabled
      */
     function setAllowlistEnabled(bool enabled_) external;
@@ -696,7 +697,7 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**
      * @notice Adds an account to or removes it from the allowlist.
      * @dev    This function can only be called by accounts with `ALLOWLIST_MANAGER_ROLE`.
-     *         Removing an account does not affect deposit requests already queued for it.
+     *         Removing an account does not affect deposit or redeem requests already queued for it.
      * @param  account_     The account to add or remove
      * @param  allowlisted_ Whether the account is allowlisted
      */
@@ -873,7 +874,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      *         redeemed for assets.
      * @dev    Can only be called while the vault is not paused. `shares_` must be at least
      *         `minRedeem`, checked before the fee is deducted, and `recipient_` must be neither
-     *         `address(0)` nor the vault. Updates the rate accumulator (via `drip()`) before
+     *         `address(0)` nor the vault, and must be allowlisted while the allowlist is enabled.
+     *         Updates the rate accumulator (via `drip()`) before
      *         transferring. The redeem fee is burned upfront from `shares_`, rounding up, and the
      *         remaining shares are queued.
      * @param  shares_    The amount of shares to redeem, including the fee [share units]
@@ -907,7 +909,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Updates the recipient of a redeem request.
-     * @dev    Can only be called by the owner of the request.
+     * @dev    Can only be called by the owner of the request. While the allowlist is enabled, the
+     *         new recipient must be allowlisted.
      * @param  requestId_ The ID of the redeem request
      * @param  recipient_ The new address to receive the assets when the request is filled
      */
