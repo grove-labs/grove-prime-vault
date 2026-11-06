@@ -75,15 +75,17 @@ abstract contract TestBase is Test {
     uint256 internal constant FOUR_PCT_VSR = 1.000000001243680656318820312e27;
     uint256 internal constant FIVE_PCT_VSR = 1.000000001547125957863212448e27;
 
-    address internal admin           = makeAddr("admin");
-    address internal lossManager     = makeAddr("lossManager");
-    address internal operator        = makeAddr("operator");
-    address internal pauser          = makeAddr("pauser");
-    address internal redeemFeeSetter = makeAddr("redeemFeeSetter");
-    address internal taker           = makeAddr("taker");
-    address internal unpauser        = makeAddr("unpauser");
+    address internal admin            = makeAddr("admin");
+    address internal allowlistManager = makeAddr("allowlistManager");
+    address internal lossManager      = makeAddr("lossManager");
+    address internal operator         = makeAddr("operator");
+    address internal pauser           = makeAddr("pauser");
+    address internal redeemFeeSetter  = makeAddr("redeemFeeSetter");
+    address internal taker            = makeAddr("taker");
+    address internal unpauser         = makeAddr("unpauser");
 
     bytes32 internal DEFAULT_ADMIN_ROLE     = 0x00;
+    bytes32 internal ALLOWLIST_MANAGER_ROLE = keccak256("ALLOWLIST_MANAGER_ROLE");
     bytes32 internal LOSS_MANAGER_ROLE      = keccak256("LOSS_MANAGER_ROLE");
     bytes32 internal OPERATOR_ROLE          = keccak256("OPERATOR_ROLE");
     bytes32 internal PAUSER_ROLE            = keccak256("PAUSER_ROLE");
@@ -113,7 +115,9 @@ abstract contract TestBase is Test {
                         admin,
                         MINIMUM_DEPOSIT,
                         MINIMUM_DEPOSIT_CANCELLATION,
-                        MINIMUM_REDEEM
+                        MINIMUM_REDEEM,
+                        false,                               // Allowlist off; covered in Allowlist.t.sol
+                        IGrovePrimeVault.TransferMode.Enabled  // Covered in TransferRestrictions.t.sol
                     )
                 )
             ))
@@ -121,6 +125,7 @@ abstract contract TestBase is Test {
 
         vm.startPrank(admin);
 
+        grPrime.grantRole(ALLOWLIST_MANAGER_ROLE, allowlistManager);
         grPrime.grantRole(LOSS_MANAGER_ROLE,      lossManager);
         grPrime.grantRole(OPERATOR_ROLE,          operator);
         grPrime.grantRole(PAUSER_ROLE,            pauser);
@@ -194,6 +199,26 @@ abstract contract TestBase is Test {
     function _unpause() internal {
         vm.prank(unpauser);
         grPrime.unpause();
+    }
+
+    function _setAllowlistEnabled(bool enabled) internal {
+        vm.prank(allowlistManager);
+        grPrime.setAllowlistEnabled(enabled);
+    }
+
+    function _setAllowlisted(address account, bool allowlisted) internal {
+        vm.prank(allowlistManager);
+        grPrime.setAllowlisted(account, allowlisted);
+    }
+
+    function _setTransferMode(IGrovePrimeVault.TransferMode mode) internal {
+        vm.prank(allowlistManager);
+        grPrime.setTransferMode(mode);
+    }
+
+    function _setTransferAllowlisted(address account, bool allowlisted) internal {
+        vm.prank(allowlistManager);
+        grPrime.setTransferAllowlisted(account, allowlisted);
     }
 
     function _setCapacity(uint256 capacity) internal {

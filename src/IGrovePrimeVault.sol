@@ -11,6 +11,24 @@ import { IERC20Permit }   from "../lib/oz/contracts/token/ERC20/extensions/IERC2
 interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumerable {
 
     /**********************************************************************************************/
+    /*** Enums                                                                                  ***/
+    /**********************************************************************************************/
+
+    /**
+     * @notice The restriction applied to share transfers via `transfer` and `transferFrom`.
+     * @dev    `Enabled`:       Anyone can transfer.
+     *         `AllowlistOnly`: Both the sender and the receiver must be transfer allowlisted.
+     *         `Disabled`:      No transfers are possible.
+     *         Minting, burning, and moving shares into the vault via `requestRedeem` are never
+     *         restricted.
+     */
+    enum TransferMode {
+        Enabled,
+        AllowlistOnly,
+        Disabled
+    }
+
+    /**********************************************************************************************/
     /*** Structs                                                                                ***/
     /**********************************************************************************************/
 
@@ -33,6 +51,21 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**********************************************************************************************/
     /*** Events                                                                                 ***/
     /**********************************************************************************************/
+
+    /**
+     * @notice Emitted when the allowlist is turned on or off.
+     * @param  caller  The address that turned the allowlist on or off
+     * @param  enabled Whether the allowlist is enabled
+     */
+    event AllowlistEnabledSet(address indexed caller, bool enabled);
+
+    /**
+     * @notice Emitted when an account is added to or removed from the allowlist.
+     * @param  caller      The address that updated the allowlist
+     * @param  account     The account added or removed
+     * @param  allowlisted Whether the account is allowlisted
+     */
+    event AllowlistUpdated(address indexed caller, address indexed account, bool allowlisted);
 
     /**
      * @notice Emitted when the maximum capacity is updated.
@@ -298,6 +331,21 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     event TotalAssetsAdjusted(address indexed caller, uint192 chi, int256 deltaTotalAssets);
 
     /**
+     * @notice Emitted when an account is added to or removed from the transfer allowlist.
+     * @param  caller      The address that updated the transfer allowlist
+     * @param  account     The account added or removed
+     * @param  allowlisted Whether the account is transfer allowlisted
+     */
+    event TransferAllowlistUpdated(address indexed caller, address indexed account, bool allowlisted);
+
+    /**
+     * @notice Emitted when the transfer mode is set.
+     * @param  caller The address that set the transfer mode
+     * @param  mode   The new transfer mode
+     */
+    event TransferModeSet(address indexed caller, TransferMode mode);
+
+    /**
      * @notice Emitted when the vault is unpaused.
      * @param  caller The address that unpaused the vault
      */
@@ -390,14 +438,26 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /// @notice Thrown when the caller is not the owner of the request.
     error NotRequestOwner();
 
+    /// @notice Thrown when transfers are allowlist-only and the receiver is not transfer allowlisted.
+    error ReceiverNotTransferAllowlisted();
+
+    /// @notice Thrown when the allowlist is enabled and the recipient is not allowlisted.
+    error RecipientNotAllowlisted();
+
     /// @notice Thrown when cancelling more savings shares than the deposit request has.
     error SavingsSharesTooHigh();
+
+    /// @notice Thrown when transfers are allowlist-only and the sender is not transfer allowlisted.
+    error SenderNotTransferAllowlisted();
 
     /// @notice Thrown when a requested range of requests starts after the end of the queue.
     error StartIdTooLarge();
 
     /// @notice Thrown when a requested range of requests starts before the first pending request.
     error StartIdTooSmall();
+
+    /// @notice Thrown when transfers are disabled.
+    error TransfersDisabled();
 
     /// @notice Thrown when the recipient is the vault itself.
     error VaultIsRecipient();
@@ -426,6 +486,12 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**********************************************************************************************/
     /*** Constants                                                                              ***/
     /**********************************************************************************************/
+
+    /**
+     * @notice Returns the identifier of the role that can turn the allowlist on or off, set the
+     *         transfer mode, and update allowlisted and transfer allowlisted accounts.
+     */
+    function ALLOWLIST_MANAGER_ROLE() external view returns (bytes32);
 
     /// @notice Returns the identifier of the role that can adjust the total assets.
     function LOSS_MANAGER_ROLE() external view returns (bytes32);
@@ -561,6 +627,30 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      */
     function claimableAssets(address account_) external view returns (uint256 assets_);
 
+    /**
+     * @notice Returns whether the allowlist is enabled. While enabled, only allowlisted accounts
+     *         can be set as the recipient of a deposit or redeem request.
+     */
+    function allowlistEnabled() external view returns (bool);
+
+    /**
+     * @notice Returns whether `account_` is allowlisted as a deposit or redeem recipient.
+     * @param  account_     The address to check
+     * @return allowlisted_ Whether the account is allowlisted
+     */
+    function isMintRedeemAllowlisted(address account_) external view returns (bool allowlisted_);
+
+    /// @notice Returns the restriction currently applied to share transfers.
+    function transferMode() external view returns (TransferMode);
+
+    /**
+     * @notice Returns whether `account_` can send and receive shares while transfers are
+     *         allowlist-only. Separate from the deposit and redeem recipient allowlist.
+     * @param  account_     The address to check
+     * @return allowlisted_ Whether the account is transfer allowlisted
+     */
+    function isTransferAllowlisted(address account_) external view returns (bool allowlisted_);
+
     /**********************************************************************************************/
     /*** Initialization and upgradeability                                                      ***/
     /**********************************************************************************************/
@@ -570,8 +660,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @dev    Can only be called once. Sets the asset and decimals from `savings_`, sets
      *         `chi`/`vsr`/`minVSR`/`maxVSR` to RAY, sets `rho` to `block.timestamp`, grants
      *         `DEFAULT_ADMIN_ROLE` to `admin_`, sets the minimum deposit, deposit cancellation and
-     *         redeem amounts, and approves `savings_` to spend the vault's assets. All minimums
-     *         must be nonzero.
+     *         redeem amounts, turns the allowlist on or off, sets the transfer mode, and approves
+     *         `savings_` to spend the vault's assets. All minimums must be nonzero.
      * @param  savings_                The address of the ERC-4626 savings vault the deposited
      *                                 assets are held in
      * @param  name_                   The name of the vault token
@@ -583,6 +673,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      *                                 cancellation request [savings share units]
      * @param  minRedeem_              The minimum amount of shares for a redeem request
      *                                 [share units]
+     * @param  allowlistEnabled_       Whether the allowlist starts enabled
+     * @param  transferMode_           The initial transfer mode
      */
     function initialize(
         address        savings_,
@@ -591,7 +683,9 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
         address        admin_,
         uint256        minDeposit_,
         uint256        minDepositCancellation_,
-        uint256        minRedeem_
+        uint256        minRedeem_,
+        bool           allowlistEnabled_,
+        TransferMode   transferMode_
     ) external;
 
     /**********************************************************************************************/
@@ -640,6 +734,45 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @param  maxVSR_ The new maximum allowed VSR value [ray]
      */
     function setVSRBounds(uint256 minVSR_, uint256 maxVSR_) external;
+
+    /**********************************************************************************************/
+    /*** Allowlist Manager external functions                                                   ***/
+    /**********************************************************************************************/
+
+    /**
+     * @notice Turns the allowlist on or off.
+     * @dev    This function can only be called by accounts with `ALLOWLIST_MANAGER_ROLE`.
+     *         The allowlist is checked when a deposit or redeem is requested and when a deposit or
+     *         redeem recipient is updated. Requests already queued are filled regardless of the
+     *         allowlist.
+     * @param  enabled_ Whether the allowlist is enabled
+     */
+    function setAllowlistEnabled(bool enabled_) external;
+
+    /**
+     * @notice Adds an account to or removes it from the allowlist.
+     * @dev    This function can only be called by accounts with `ALLOWLIST_MANAGER_ROLE`.
+     *         Removing an account does not affect deposit or redeem requests already queued for it.
+     * @param  account_     The account to add or remove
+     * @param  allowlisted_ Whether the account is allowlisted
+     */
+    function setAllowlisted(address account_, bool allowlisted_) external;
+
+    /**
+     * @notice Sets the restriction applied to share transfers.
+     * @dev    This function can only be called by accounts with `ALLOWLIST_MANAGER_ROLE`.
+     * @param  mode_ The new transfer mode
+     */
+    function setTransferMode(TransferMode mode_) external;
+
+    /**
+     * @notice Adds an account to or removes it from the transfer allowlist.
+     * @dev    This function can only be called by accounts with `ALLOWLIST_MANAGER_ROLE`.
+     *         Only used while the transfer mode is `AllowlistOnly`.
+     * @param  account_     The account to add or remove
+     * @param  allowlisted_ Whether the account is transfer allowlisted
+     */
+    function setTransferAllowlisted(address account_, bool allowlisted_) external;
 
     /**********************************************************************************************/
     /*** Loss Manager external functions                                                        ***/
@@ -773,7 +906,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @notice Requests a deposit of assets, which are deposited into the savings vault and queued
      *         to be converted into shares.
      * @dev    Can only be called while the vault is not paused. `assets_` must be at least
-     *         `minDeposit` and `recipient_` must be neither `address(0)` nor the vault. Updates the
+     *         `minDeposit` and `recipient_` must be neither `address(0)` nor the vault, and must be
+     *         allowlisted while the allowlist is enabled. Updates the
      *         rate accumulator (via `drip()`) before depositing. If no unfilled deposit requests
      *         are queued ahead, the request is filled immediately, up to the available capacity, in
      *         which case the returned request may already be fully filled.
@@ -811,7 +945,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      *         redeemed for assets.
      * @dev    Can only be called while the vault is not paused. `shares_` must be at least
      *         `minRedeem`, checked before the fee is deducted, and `recipient_` must be neither
-     *         `address(0)` nor the vault. Updates the rate accumulator (via `drip()`) before
+     *         `address(0)` nor the vault, and must be allowlisted while the allowlist is enabled.
+     *         Updates the rate accumulator (via `drip()`) before
      *         transferring. The redeem fee is burned upfront from `shares_`, rounding up, and the
      *         remaining shares are queued.
      * @param  shares_    The amount of shares to redeem, including the fee [share units]
@@ -828,7 +963,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Updates the recipient of a deposit request.
-     * @dev    Can only be called by the owner of the request.
+     * @dev    Can only be called by the owner of the request. While the allowlist is enabled, the
+     *         new recipient must be allowlisted.
      * @param  requestId_ The ID of the deposit request
      * @param  recipient_ The new address to receive the shares when the request is filled
      */
@@ -844,7 +980,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Updates the recipient of a redeem request.
-     * @dev    Can only be called by the owner of the request.
+     * @dev    Can only be called by the owner of the request. While the allowlist is enabled, the
+     *         new recipient must be allowlisted.
      * @param  requestId_ The ID of the redeem request
      * @param  recipient_ The new address to receive the assets when the request is filled
      */
