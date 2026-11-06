@@ -77,7 +77,7 @@ contract AllowlistTests is TestBase {
     }
 
     function test_setAllowlisted() external {
-        assertFalse(grPrime.isAllowlisted(recipient));
+        assertFalse(grPrime.isMintRedeemAllowlisted(recipient));
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.AllowlistUpdated(allowlistManager, recipient, true);
@@ -85,7 +85,7 @@ contract AllowlistTests is TestBase {
         vm.prank(allowlistManager);
         grPrime.setAllowlisted(recipient, true);
 
-        assertTrue(grPrime.isAllowlisted(recipient));
+        assertTrue(grPrime.isMintRedeemAllowlisted(recipient));
 
         vm.expectEmit(address(grPrime));
         emit IGrovePrimeVault.AllowlistUpdated(allowlistManager, recipient, false);
@@ -93,14 +93,14 @@ contract AllowlistTests is TestBase {
         vm.prank(allowlistManager);
         grPrime.setAllowlisted(recipient, false);
 
-        assertFalse(grPrime.isAllowlisted(recipient));
+        assertFalse(grPrime.isMintRedeemAllowlisted(recipient));
     }
 
     function test_setAllowlisted_worksWhileDisabled() external {
         _setAllowlistEnabled(false);
         _setAllowlisted(recipient, true);
 
-        assertTrue(grPrime.isAllowlisted(recipient));
+        assertTrue(grPrime.isMintRedeemAllowlisted(recipient));
     }
 
     /**********************************************************************************************/
@@ -135,7 +135,7 @@ contract AllowlistTests is TestBase {
     function test_requestDeposit_onlyRecipientIsChecked() external {
         _setAllowlisted(recipient, true);
 
-        assertFalse(grPrime.isAllowlisted(user));
+        assertFalse(grPrime.isMintRedeemAllowlisted(user));
 
         _requestDeposit(user, recipient, 1_000_000e18);  // Filled instantly
 
@@ -159,7 +159,7 @@ contract AllowlistTests is TestBase {
     function test_requestDeposit_allowlistDisabled() external {
         _setAllowlistEnabled(false);
 
-        assertFalse(grPrime.isAllowlisted(recipient));
+        assertFalse(grPrime.isMintRedeemAllowlisted(recipient));
 
         _requestDeposit(user, recipient, 1_000_000e18);  // Filled instantly
 

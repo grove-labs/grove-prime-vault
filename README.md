@@ -29,7 +29,7 @@ Deposits are two-step: the user's assets go to the savings sleeve immediately, a
 - **Capacity**: Fills are bounded by `availableCapacity() = maxCapacity - totalSupply` (floored at 0), converted to savings shares.
 - **Processing**: `OPERATOR_ROLE` calls `processPendingDeposits(maxSavingsShares, maxRequests)`. Savings shares are converted to assets and then minted as `grPrime` to each request's `recipient` at the current `chi`. Requests can be **partially filled**; a partially filled request stays at the head of the queue.
 - **Updating the recipient**: The request `owner` can call `updateDepositRecipient(requestId, recipient)` to change who receives the minted shares. The new recipient must be allowlisted while the allowlist is enabled.
-- **Allowlist**: When `allowlistEnabled` is true, only allowlisted addresses (`isAllowlisted`) can be deposit recipients. Only the recipient is checked, not the depositor. The check runs when a request is made or its recipient is updated, not when it is processed, so requests already in the queue still mint after their recipient is removed from the allowlist or the allowlist is turned on. `ALLOWLIST_MANAGER_ROLE` manages the list and the toggle; the initial state is set by the `allowlistEnabled` `initialize` parameter. The same allowlist applies to redeem recipients (see below). It does not restrict deposit cancellations, and it is separate from the transfer allowlist (see [Transfer Restrictions](#9-transfer-restrictions)).
+- **Allowlist**: When `allowlistEnabled` is true, only allowlisted addresses (`isMintRedeemAllowlisted`) can be deposit recipients. Only the recipient is checked, not the depositor. The check runs when a request is made or its recipient is updated, not when it is processed, so requests already in the queue still mint after their recipient is removed from the allowlist or the allowlist is turned on. `ALLOWLIST_MANAGER_ROLE` manages the list and the toggle; the initial state is set by the `allowlistEnabled` `initialize` parameter. The same allowlist applies to redeem recipients (see below). It does not restrict deposit cancellations, and it is separate from the transfer allowlist (see [Transfer Restrictions](#9-transfer-restrictions)).
 
 ### 3. Deposit Cancellation & Cancellation Queue
 
@@ -79,7 +79,7 @@ Redemptions are always asynchronous (there is no instant fill).
   - **`Enabled`**: anyone can transfer.
   - **`AllowlistOnly`**: both the sender (`from`) and the receiver (`to`) must be on the transfer allowlist (`isTransferAllowlisted`). The spender in `transferFrom` is not checked. Reverts with `SenderNotTransferAllowlisted` or `ReceiverNotTransferAllowlisted`.
   - **`Disabled`**: all transfers revert with `TransfersDisabled`.
-- The transfer allowlist is separate from the deposit/redeem recipient allowlist (`isAllowlisted`).
+- The transfer allowlist is separate from the deposit/redeem recipient allowlist (`isMintRedeemAllowlisted`).
 - The initial mode is set by the `transferMode` `initialize` parameter (intended default: `AllowlistOnly`). `ALLOWLIST_MANAGER_ROLE` changes it with `setTransferMode` and manages the transfer allowlist with `setTransferAllowlisted`.
 - Minting, burning, and moving shares into the vault by `requestRedeem` are never restricted, so holders can always redeem regardless of the transfer mode. `approve` and `permit` are unaffected.
 
@@ -99,20 +99,20 @@ The vault is designed for Sky's `sUSDS` savings vault, with USDS as the underlyi
 
 ## Configuration
 
-| Parameter                | Setter (role)                                       | Notes                                                             |
-| ------------------------ | --------------------------------------------------- | ----------------------------------------------------------------- |
-| `maxCapacity`            | `setCapacity` (`OPERATOR_ROLE`)                     | Maximum `totalSupply` used to size deposit fills.                 |
-| `minDeposit`             | `setMinDeposit` (`DEFAULT_ADMIN_ROLE`)              | Minimum assets per `requestDeposit`. Nonzero.                     |
-| `minDepositCancellation` | `setMinDepositCancellation` (`DEFAULT_ADMIN_ROLE`)  | Minimum savings shares per `requestDepositCancellation`. Nonzero. |
-| `minRedeem`              | `setMinRedeem` (`DEFAULT_ADMIN_ROLE`)               | Minimum shares per `requestRedeem`. Nonzero.                      |
-| `minVSR`/`maxVSR`        | `setVSRBounds` (`DEFAULT_ADMIN_ROLE`)               | `RAY <= minVSR <= maxVSR <= MAX_VSR`.                             |
-| `vsr`                    | `setVSR` (`OPERATOR_ROLE`)                          | Must be within `[minVSR, maxVSR]`; drips before updating.         |
-| `maxRedeemFeeRate`       | `setMaxRedeemFeeRate` (`DEFAULT_ADMIN_ROLE`)        | Wad; capped by the `MAX_REDEEM_FEE` constant (1%).                |
-| `redeemFeeRate`          | `setRedeemFeeRate` (`REDEEM_FEE_SETTER_ROLE`)       | Wad; must be `<= maxRedeemFeeRate`.                               |
-| `allowlistEnabled`       | `setAllowlistEnabled` (`ALLOWLIST_MANAGER_ROLE`)    | Set in `initialize`. Gates deposit and redeem recipients.         |
-| `isAllowlisted`          | `setAllowlisted` (`ALLOWLIST_MANAGER_ROLE`)         | Per-account flag checked while the allowlist is enabled.          |
-| `transferMode`           | `setTransferMode` (`ALLOWLIST_MANAGER_ROLE`)        | Set in `initialize`. `Enabled`, `AllowlistOnly`, or `Disabled`.   |
-| `isTransferAllowlisted`  | `setTransferAllowlisted` (`ALLOWLIST_MANAGER_ROLE`) | Sender and receiver flag checked in `AllowlistOnly` mode.         |
+| Parameter                 | Setter (role)                                       | Notes                                                             |
+| ------------------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
+| `maxCapacity`             | `setCapacity` (`OPERATOR_ROLE`)                     | Maximum `totalSupply` used to size deposit fills.                 |
+| `minDeposit`              | `setMinDeposit` (`DEFAULT_ADMIN_ROLE`)              | Minimum assets per `requestDeposit`. Nonzero.                     |
+| `minDepositCancellation`  | `setMinDepositCancellation` (`DEFAULT_ADMIN_ROLE`)  | Minimum savings shares per `requestDepositCancellation`. Nonzero. |
+| `minRedeem`               | `setMinRedeem` (`DEFAULT_ADMIN_ROLE`)               | Minimum shares per `requestRedeem`. Nonzero.                      |
+| `minVSR`/`maxVSR`         | `setVSRBounds` (`DEFAULT_ADMIN_ROLE`)               | `RAY <= minVSR <= maxVSR <= MAX_VSR`.                             |
+| `vsr`                     | `setVSR` (`OPERATOR_ROLE`)                          | Must be within `[minVSR, maxVSR]`; drips before updating.         |
+| `maxRedeemFeeRate`        | `setMaxRedeemFeeRate` (`DEFAULT_ADMIN_ROLE`)        | Wad; capped by the `MAX_REDEEM_FEE` constant (1%).                |
+| `redeemFeeRate`           | `setRedeemFeeRate` (`REDEEM_FEE_SETTER_ROLE`)       | Wad; must be `<= maxRedeemFeeRate`.                               |
+| `allowlistEnabled`        | `setAllowlistEnabled` (`ALLOWLIST_MANAGER_ROLE`)    | Set in `initialize`. Gates deposit and redeem recipients.         |
+| `isMintRedeemAllowlisted` | `setAllowlisted` (`ALLOWLIST_MANAGER_ROLE`)         | Per-account flag checked while the allowlist is enabled.          |
+| `transferMode`            | `setTransferMode` (`ALLOWLIST_MANAGER_ROLE`)        | Set in `initialize`. `Enabled`, `AllowlistOnly`, or `Disabled`.   |
+| `isTransferAllowlisted`   | `setTransferAllowlisted` (`ALLOWLIST_MANAGER_ROLE`) | Sender and receiver flag checked in `AllowlistOnly` mode.         |
 
 ---
 

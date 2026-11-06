@@ -638,7 +638,7 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @param  account_     The address to check
      * @return allowlisted_ Whether the account is allowlisted
      */
-    function isAllowlisted(address account_) external view returns (bool allowlisted_);
+    function isMintRedeemAllowlisted(address account_) external view returns (bool allowlisted_);
 
     /// @notice Returns the restriction currently applied to share transfers.
     function transferMode() external view returns (TransferMode);

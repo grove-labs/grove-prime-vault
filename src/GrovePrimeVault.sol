@@ -158,7 +158,7 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
 
     bool public override allowlistEnabled;
 
-    mapping (address account => bool allowlisted) public override isAllowlisted;
+    mapping (address account => bool allowlisted) public override isMintRedeemAllowlisted;
 
     TransferMode public override transferMode;
 
@@ -269,7 +269,11 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         override
         onlyRole(ALLOWLIST_MANAGER_ROLE)
     {
-        emit AllowlistUpdated(msg.sender, account_, isAllowlisted[account_] = allowlisted_);
+        emit AllowlistUpdated(
+            msg.sender,
+            account_,
+            isMintRedeemAllowlisted[account_] = allowlisted_
+        );
     }
 
     function setTransferMode(TransferMode mode_) external override onlyRole(ALLOWLIST_MANAGER_ROLE) {
@@ -932,7 +936,7 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     // Enforced only when a deposit or redeem recipient is set, so a recipient removed from the
     // allowlist cannot block a FIFO queue once its request is queued.
     function _isAllowedRecipient(address recipient_) internal view returns (bool) {
-        return !allowlistEnabled || isAllowlisted[recipient_];
+        return !allowlistEnabled || isMintRedeemAllowlisted[recipient_];
     }
 
     // Applied only to `transfer` and `transferFrom`, not `_transfer`, so `requestRedeem` can always

@@ -114,13 +114,13 @@ contract TransferRestrictionsTests is TestBase {
     function test_transferAllowlist_isSeparateFromRecipientAllowlist() external {
         _setAllowlisted(receiver, true);
 
-        assertTrue(grPrime.isAllowlisted(receiver));
+        assertTrue(grPrime.isMintRedeemAllowlisted(receiver));
         assertFalse(grPrime.isTransferAllowlisted(receiver));
 
         _setTransferAllowlisted(user, true);
 
         assertTrue(grPrime.isTransferAllowlisted(user));
-        assertFalse(grPrime.isAllowlisted(user));
+        assertFalse(grPrime.isMintRedeemAllowlisted(user));
     }
 
     /**********************************************************************************************/
