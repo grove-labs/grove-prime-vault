@@ -11,6 +11,24 @@ import { IERC20Permit }   from "../lib/oz/contracts/token/ERC20/extensions/IERC2
 interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumerable {
 
     /**********************************************************************************************/
+    /*** Enums                                                                                  ***/
+    /**********************************************************************************************/
+
+    /**
+     * @notice The restriction applied to share transfers via `transfer` and `transferFrom`.
+     * @dev    `Enabled`:       Anyone can transfer.
+     *         `AllowlistOnly`: Both the sender and the receiver must be transfer allowlisted.
+     *         `Disabled`:      No transfers are possible.
+     *         Minting, burning, and moving shares into the vault via `requestRedeem` are never
+     *         restricted.
+     */
+    enum TransferMode {
+        Enabled,
+        AllowlistOnly,
+        Disabled
+    }
+
+    /**********************************************************************************************/
     /*** Structs                                                                                ***/
     /**********************************************************************************************/
 
@@ -313,6 +331,21 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     event TotalAssetsAdjusted(address indexed caller, uint192 chi, int256 deltaTotalAssets);
 
     /**
+     * @notice Emitted when an account is added to or removed from the transfer allowlist.
+     * @param  caller      The address that updated the transfer allowlist
+     * @param  account     The account added or removed
+     * @param  allowlisted Whether the account is transfer allowlisted
+     */
+    event TransferAllowlistUpdated(address indexed caller, address indexed account, bool allowlisted);
+
+    /**
+     * @notice Emitted when the transfer mode is set.
+     * @param  caller The address that set the transfer mode
+     * @param  mode   The new transfer mode
+     */
+    event TransferModeSet(address indexed caller, TransferMode mode);
+
+    /**
      * @notice Emitted when the vault is unpaused.
      * @param  caller The address that unpaused the vault
      */
@@ -405,17 +438,26 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /// @notice Thrown when the caller is not the owner of the request.
     error NotRequestOwner();
 
+    /// @notice Thrown when transfers are allowlist-only and the receiver is not transfer allowlisted.
+    error ReceiverNotTransferAllowlisted();
+
     /// @notice Thrown when the allowlist is enabled and the recipient is not allowlisted.
     error RecipientNotAllowlisted();
 
     /// @notice Thrown when cancelling more savings shares than the deposit request has.
     error SavingsSharesTooHigh();
 
+    /// @notice Thrown when transfers are allowlist-only and the sender is not transfer allowlisted.
+    error SenderNotTransferAllowlisted();
+
     /// @notice Thrown when a requested range of requests starts after the end of the queue.
     error StartIdTooLarge();
 
     /// @notice Thrown when a requested range of requests starts before the first pending request.
     error StartIdTooSmall();
+
+    /// @notice Thrown when transfers are disabled.
+    error TransfersDisabled();
 
     /// @notice Thrown when the recipient is the vault itself.
     error VaultIsRecipient();
@@ -446,8 +488,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**********************************************************************************************/
 
     /**
-     * @notice Returns the identifier of the role that can turn the allowlist on or off and update
-     *         allowlisted accounts.
+     * @notice Returns the identifier of the role that can turn the allowlist on or off, set the
+     *         transfer mode, and update allowlisted and transfer allowlisted accounts.
      */
     function ALLOWLIST_MANAGER_ROLE() external view returns (bytes32);
 
@@ -598,6 +640,17 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      */
     function isAllowlisted(address account_) external view returns (bool allowlisted_);
 
+    /// @notice Returns the restriction currently applied to share transfers.
+    function transferMode() external view returns (TransferMode);
+
+    /**
+     * @notice Returns whether `account_` can send and receive shares while transfers are
+     *         allowlist-only. Separate from the deposit and redeem recipient allowlist.
+     * @param  account_     The address to check
+     * @return allowlisted_ Whether the account is transfer allowlisted
+     */
+    function isTransferAllowlisted(address account_) external view returns (bool allowlisted_);
+
     /**********************************************************************************************/
     /*** Initialization and upgradeability                                                      ***/
     /**********************************************************************************************/
@@ -607,8 +660,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @dev    Can only be called once. Sets the asset and decimals from `savings_`, sets
      *         `chi`/`vsr`/`minVSR`/`maxVSR` to RAY, sets `rho` to `block.timestamp`, grants
      *         `DEFAULT_ADMIN_ROLE` to `admin_`, sets the minimum deposit, deposit cancellation and
-     *         redeem amounts, turns the allowlist on or off, and approves `savings_` to spend the
-     *         vault's assets. All minimums must be nonzero.
+     *         redeem amounts, turns the allowlist on or off, sets the transfer mode, and approves
+     *         `savings_` to spend the vault's assets. All minimums must be nonzero.
      * @param  savings_                The address of the ERC-4626 savings vault the deposited
      *                                 assets are held in
      * @param  name_                   The name of the vault token
@@ -621,6 +674,7 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @param  minRedeem_              The minimum amount of shares for a redeem request
      *                                 [share units]
      * @param  allowlistEnabled_       Whether the allowlist starts enabled
+     * @param  transferMode_           The initial transfer mode
      */
     function initialize(
         address        savings_,
@@ -630,7 +684,8 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
         uint256        minDeposit_,
         uint256        minDepositCancellation_,
         uint256        minRedeem_,
-        bool           allowlistEnabled_
+        bool           allowlistEnabled_,
+        TransferMode   transferMode_
     ) external;
 
     /**********************************************************************************************/
@@ -702,6 +757,22 @@ interface IGrovePrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @param  allowlisted_ Whether the account is allowlisted
      */
     function setAllowlisted(address account_, bool allowlisted_) external;
+
+    /**
+     * @notice Sets the restriction applied to share transfers.
+     * @dev    This function can only be called by accounts with `ALLOWLIST_MANAGER_ROLE`.
+     * @param  mode_ The new transfer mode
+     */
+    function setTransferMode(TransferMode mode_) external;
+
+    /**
+     * @notice Adds an account to or removes it from the transfer allowlist.
+     * @dev    This function can only be called by accounts with `ALLOWLIST_MANAGER_ROLE`.
+     *         Only used while the transfer mode is `AllowlistOnly`.
+     * @param  account_     The account to add or remove
+     * @param  allowlisted_ Whether the account is transfer allowlisted
+     */
+    function setTransferAllowlisted(address account_, bool allowlisted_) external;
 
     /**********************************************************************************************/
     /*** Loss Manager external functions                                                        ***/

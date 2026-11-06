@@ -38,6 +38,25 @@ contract InitializeTests is TestBase {
         internal
         returns (IGrovePrimeVault)
     {
+        return _deploy(
+            minDeposit,
+            minDepositCancellation,
+            minRedeem,
+            allowlistEnabled,
+            IGrovePrimeVault.TransferMode.AllowlistOnly
+        );
+    }
+
+    function _deploy(
+        uint256                       minDeposit,
+        uint256                       minDepositCancellation,
+        uint256                       minRedeem,
+        bool                          allowlistEnabled,
+        IGrovePrimeVault.TransferMode transferMode
+    )
+        internal
+        returns (IGrovePrimeVault)
+    {
         vm.prank(deployer);
 
         return GrovePrimeVault(
@@ -53,7 +72,8 @@ contract InitializeTests is TestBase {
                         minDeposit,
                         minDepositCancellation,
                         minRedeem,
-                        allowlistEnabled
+                        allowlistEnabled,
+                        transferMode
                     )
                 )
             ))
@@ -81,12 +101,32 @@ contract InitializeTests is TestBase {
 
     function test_initialize_alreadyInitialized() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        grPrime.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1, true);
+        grPrime.initialize(
+            address(sUSDS),
+            "Grove Prime USDS",
+            "grPrime",
+            admin,
+            1,
+            1,
+            1,
+            true,
+            IGrovePrimeVault.TransferMode.AllowlistOnly
+        );
     }
 
     function test_initialize_implementationDisabled() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        implementation.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1, true);
+        implementation.initialize(
+            address(sUSDS),
+            "Grove Prime USDS",
+            "grPrime",
+            admin,
+            1,
+            1,
+            1,
+            true,
+            IGrovePrimeVault.TransferMode.AllowlistOnly
+        );
     }
 
     function test_initialize() external {
@@ -113,6 +153,9 @@ contract InitializeTests is TestBase {
         vm.expectEmit(expectedProxy);
         emit IGrovePrimeVault.AllowlistEnabledSet(expectedProxy, true);
 
+        vm.expectEmit(expectedProxy);
+        emit IGrovePrimeVault.TransferModeSet(expectedProxy, IGrovePrimeVault.TransferMode.AllowlistOnly);
+
         IGrovePrimeVault vault = _deploy(MINIMUM_DEPOSIT, MINIMUM_DEPOSIT_CANCELLATION, MINIMUM_REDEEM);
 
         assertEq(address(vault), expectedProxy);
@@ -137,6 +180,8 @@ contract InitializeTests is TestBase {
 
         assertEq(vault.allowlistEnabled(), true);
 
+        assertEq(uint8(vault.transferMode()), uint8(IGrovePrimeVault.TransferMode.AllowlistOnly));
+
         assertEq(usds.allowance(address(vault), address(sUSDS)), type(uint256).max);
     }
 
@@ -149,6 +194,40 @@ contract InitializeTests is TestBase {
         IGrovePrimeVault vault = _deploy(MINIMUM_DEPOSIT, MINIMUM_DEPOSIT_CANCELLATION, MINIMUM_REDEEM, false);
 
         assertEq(vault.allowlistEnabled(), false);
+    }
+
+    function test_initialize_transferModeEnabled() external {
+        address expectedProxy = vm.computeCreateAddress(deployer, vm.getNonce(deployer));
+
+        vm.expectEmit(expectedProxy);
+        emit IGrovePrimeVault.TransferModeSet(expectedProxy, IGrovePrimeVault.TransferMode.Enabled);
+
+        IGrovePrimeVault vault = _deploy(
+            MINIMUM_DEPOSIT,
+            MINIMUM_DEPOSIT_CANCELLATION,
+            MINIMUM_REDEEM,
+            true,
+            IGrovePrimeVault.TransferMode.Enabled
+        );
+
+        assertEq(uint8(vault.transferMode()), uint8(IGrovePrimeVault.TransferMode.Enabled));
+    }
+
+    function test_initialize_transferModeDisabled() external {
+        address expectedProxy = vm.computeCreateAddress(deployer, vm.getNonce(deployer));
+
+        vm.expectEmit(expectedProxy);
+        emit IGrovePrimeVault.TransferModeSet(expectedProxy, IGrovePrimeVault.TransferMode.Disabled);
+
+        IGrovePrimeVault vault = _deploy(
+            MINIMUM_DEPOSIT,
+            MINIMUM_DEPOSIT_CANCELLATION,
+            MINIMUM_REDEEM,
+            true,
+            IGrovePrimeVault.TransferMode.Disabled
+        );
+
+        assertEq(uint8(vault.transferMode()), uint8(IGrovePrimeVault.TransferMode.Disabled));
     }
 
 }

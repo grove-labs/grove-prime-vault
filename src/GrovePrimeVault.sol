@@ -160,6 +160,10 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
 
     mapping (address account => bool allowlisted) public override isAllowlisted;
 
+    TransferMode public override transferMode;
+
+    mapping (address account => bool allowlisted) public override isTransferAllowlisted;
+
     modifier whenNotPaused() {
         require(!paused, IsPaused());
         _;
@@ -183,17 +187,16 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         uint256        minDeposit_,
         uint256        minDepositCancellation_,
         uint256        minRedeem_,
-        bool           allowlistEnabled_
+        bool           allowlistEnabled_,
+        TransferMode   transferMode_
     )
         initializer external override
     {
-        address asset_ = IERC4626Like(savings_).asset();
-
         savings  = savings_;
-        asset    = asset_;
+        asset    = IERC4626Like(savings_).asset();
         name     = name_;
         symbol   = symbol_;
-        decimals = IERC20Like(asset_).decimals();
+        decimals = IERC20Like(asset).decimals();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
@@ -208,8 +211,9 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         _setMinRedeem(minRedeem_);
 
         emit AllowlistEnabledSet(address(this), allowlistEnabled = allowlistEnabled_);
+        emit TransferModeSet(address(this), transferMode = transferMode_);
 
-        SafeERC20.forceApprove(IERC20OZ(asset_), savings_, type(uint256).max);
+        SafeERC20.forceApprove(IERC20OZ(asset), savings_, type(uint256).max);
     }
 
     // Only DEFAULT_ADMIN_ROLE can upgrade the implementation.
@@ -266,6 +270,22 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         onlyRole(ALLOWLIST_MANAGER_ROLE)
     {
         emit AllowlistUpdated(msg.sender, account_, isAllowlisted[account_] = allowlisted_);
+    }
+
+    function setTransferMode(TransferMode mode_) external override onlyRole(ALLOWLIST_MANAGER_ROLE) {
+        transferMode = mode_;
+
+        emit TransferModeSet(msg.sender, mode_);
+    }
+
+    function setTransferAllowlisted(address account_, bool allowlisted_)
+        external
+        override
+        onlyRole(ALLOWLIST_MANAGER_ROLE)
+    {
+        isTransferAllowlisted[account_] = allowlisted_;
+
+        emit TransferAllowlistUpdated(msg.sender, account_, allowlisted_);
     }
 
     /**********************************************************************************************/
@@ -581,6 +601,8 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     function transfer(address to_, uint256 amount_) external override returns (bool) {
         require(to_ != address(0) && to_ != address(this), "GrovePrimeVault/invalid-address");
 
+        _checkTransferAllowed(msg.sender, to_);
+
         _transfer(msg.sender, to_, amount_);
 
         return true;
@@ -592,6 +614,8 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         returns (bool)
     {
         require(to_ != address(0) && to_ != address(this), "GrovePrimeVault/invalid-address");
+
+        _checkTransferAllowed(from_, to_);
 
         _transfer(from_, to_, amount_);
 
@@ -909,6 +933,18 @@ contract GrovePrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     // allowlist cannot block a FIFO queue once its request is queued.
     function _isAllowedRecipient(address recipient_) internal view returns (bool) {
         return !allowlistEnabled || isAllowlisted[recipient_];
+    }
+
+    // Applied only to `transfer` and `transferFrom`, not `_transfer`, so `requestRedeem` can always
+    // escrow shares in the vault regardless of the transfer mode.
+    function _checkTransferAllowed(address from_, address to_) internal view {
+        TransferMode mode_ = transferMode;
+
+        if (mode_ == TransferMode.Enabled) return;
+
+        require(mode_ != TransferMode.Disabled, TransfersDisabled());
+        require(isTransferAllowlisted[from_],   SenderNotTransferAllowlisted());
+        require(isTransferAllowlisted[to_],     ReceiverNotTransferAllowlisted());
     }
 
     function _setMinDeposit(uint256 minDeposit_) internal {

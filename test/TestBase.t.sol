@@ -116,7 +116,8 @@ abstract contract TestBase is Test {
                         MINIMUM_DEPOSIT,
                         MINIMUM_DEPOSIT_CANCELLATION,
                         MINIMUM_REDEEM,
-                        false  // Allowlist off; allowlist behavior is covered in Allowlist.t.sol
+                        false,                               // Allowlist off; covered in Allowlist.t.sol
+                        IGrovePrimeVault.TransferMode.Enabled  // Covered in TransferRestrictions.t.sol
                     )
                 )
             ))
@@ -208,6 +209,16 @@ abstract contract TestBase is Test {
     function _setAllowlisted(address account, bool allowlisted) internal {
         vm.prank(allowlistManager);
         grPrime.setAllowlisted(account, allowlisted);
+    }
+
+    function _setTransferMode(IGrovePrimeVault.TransferMode mode) internal {
+        vm.prank(allowlistManager);
+        grPrime.setTransferMode(mode);
+    }
+
+    function _setTransferAllowlisted(address account, bool allowlisted) internal {
+        vm.prank(allowlistManager);
+        grPrime.setTransferAllowlisted(account, allowlisted);
     }
 
     function _setCapacity(uint256 capacity) internal {
