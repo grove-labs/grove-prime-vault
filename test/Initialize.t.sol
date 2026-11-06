@@ -3,40 +3,40 @@ pragma solidity ^0.8.34;
 
 import { Initializable } from "../lib/oz/contracts/proxy/utils/Initializable.sol";
 
-import { ERC1967Proxy, TestBase, SparkPrimeVault } from "./TestBase.t.sol";
+import { ERC1967Proxy, TestBase, GrovePrimeVault } from "./TestBase.t.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
+import { IGrovePrimeVault } from "../src/IGrovePrimeVault.sol";
 
-import { SparkPrimeVault } from "../src/SparkPrimeVault.sol";
+import { GrovePrimeVault } from "../src/GrovePrimeVault.sol";
 
 contract InitializeTests is TestBase {
 
     address internal deployer = makeAddr("deployer");
 
-    SparkPrimeVault internal implementation;
+    GrovePrimeVault internal implementation;
 
     function setUp() public override virtual {
         super.setUp();
 
         vm.prank(deployer);
-        implementation = new SparkPrimeVault();
+        implementation = new GrovePrimeVault();
     }
 
     function _deploy(uint256 minDeposit, uint256 minDepositCancellation, uint256 minRedeem)
         internal
-        returns (ISparkPrimeVault)
+        returns (IGrovePrimeVault)
     {
         vm.prank(deployer);
 
-        return SparkPrimeVault(
+        return GrovePrimeVault(
             address(new ERC1967Proxy(
                 address(implementation),
                 abi.encodeCall(
-                    ISparkPrimeVault.initialize,
+                    IGrovePrimeVault.initialize,
                     (
-                        address(spUSDC),
-                        "Spark Prime USDC",
-                        "spPrime",
+                        address(sUSDS),
+                        "Grove Prime USDS",
+                        "grPrime",
                         admin,
                         minDeposit,
                         minDepositCancellation,
@@ -52,60 +52,60 @@ contract InitializeTests is TestBase {
     /**********************************************************************************************/
 
     function test_initialize_zeroMinDeposit() external {
-        vm.expectRevert(ISparkPrimeVault.ZeroMinDeposit.selector);
+        vm.expectRevert(IGrovePrimeVault.ZeroMinDeposit.selector);
         _deploy(0, 0, 0);
     }
 
     function test_initialize_zeroMinDepositCancellation() external {
-        vm.expectRevert(ISparkPrimeVault.ZeroMinDepositCancellation.selector);
+        vm.expectRevert(IGrovePrimeVault.ZeroMinDepositCancellation.selector);
         _deploy(1, 0, 0);
     }
 
     function test_initialize_zeroMinRedeem() external {
-        vm.expectRevert(ISparkPrimeVault.ZeroMinRedeem.selector);
+        vm.expectRevert(IGrovePrimeVault.ZeroMinRedeem.selector);
         _deploy(1, 1, 0);
     }
 
     function test_initialize_alreadyInitialized() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        spPrime.initialize(address(spUSDC), "Spark Prime USDC", "spPrime", admin, 1, 1, 1);
+        grPrime.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1);
     }
 
     function test_initialize_implementationDisabled() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        implementation.initialize(address(spUSDC), "Spark Prime USDC", "spPrime", admin, 1, 1, 1);
+        implementation.initialize(address(sUSDS), "Grove Prime USDS", "grPrime", admin, 1, 1, 1);
     }
 
     function test_initialize() external {
         address expectedProxy = vm.computeCreateAddress(deployer, vm.getNonce(deployer));
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.Drip(uint192(RAY), 0);
+        emit IGrovePrimeVault.Drip(uint192(RAY), 0);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.VSRSet(expectedProxy, RAY);
+        emit IGrovePrimeVault.VSRSet(expectedProxy, RAY);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.VSRBoundsSet(expectedProxy, RAY, RAY);
+        emit IGrovePrimeVault.VSRBoundsSet(expectedProxy, RAY, RAY);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.MinDepositSet(deployer, MINIMUM_DEPOSIT);
+        emit IGrovePrimeVault.MinDepositSet(deployer, MINIMUM_DEPOSIT);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.MinDepositCancellationSet(deployer, MINIMUM_DEPOSIT_CANCELLATION);
+        emit IGrovePrimeVault.MinDepositCancellationSet(deployer, MINIMUM_DEPOSIT_CANCELLATION);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.MinRedeemSet(deployer, MINIMUM_REDEEM);
+        emit IGrovePrimeVault.MinRedeemSet(deployer, MINIMUM_REDEEM);
 
-        ISparkPrimeVault vault = _deploy(MINIMUM_DEPOSIT, MINIMUM_DEPOSIT_CANCELLATION, MINIMUM_REDEEM);
+        IGrovePrimeVault vault = _deploy(MINIMUM_DEPOSIT, MINIMUM_DEPOSIT_CANCELLATION, MINIMUM_REDEEM);
 
         assertEq(address(vault), expectedProxy);
 
-        assertEq(vault.savings(),  address(spUSDC));
-        assertEq(vault.asset(),    address(usdc));
-        assertEq(vault.name(),     "Spark Prime USDC");
-        assertEq(vault.symbol(),   "spPrime");
-        assertEq(vault.decimals(), 6);
+        assertEq(vault.savings(),  address(sUSDS));
+        assertEq(vault.asset(),    address(usds));
+        assertEq(vault.name(),     "Grove Prime USDS");
+        assertEq(vault.symbol(),   "grPrime");
+        assertEq(vault.decimals(), 18);
 
         assertTrue(vault.hasRole(DEFAULT_ADMIN_ROLE, admin));
 
@@ -119,7 +119,7 @@ contract InitializeTests is TestBase {
         assertEq(vault.minDepositCancellation(), MINIMUM_DEPOSIT_CANCELLATION);
         assertEq(vault.minRedeem(),              MINIMUM_REDEEM);
 
-        assertEq(usdc.allowance(address(vault), address(spUSDC)), type(uint256).max);
+        assertEq(usds.allowance(address(vault), address(sUSDS)), type(uint256).max);
     }
 
 }
